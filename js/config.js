@@ -40,6 +40,14 @@ const CONFIG = {
   // ---------- Between balls ----------
   RUNUP_MS: 700,         // bowler run-up time
   RESULT_PAUSE_MS: 950,  // pause after each ball to enjoy the moment
+  OVER_SUMMARY_MS: 2200, // how long the end-of-over scorecard stays up
+
+  // ---------- Swipe shot placement ----------
+  // Tap for timing, then flick your finger to steer the shot!
+  SWIPE: {
+    MIN_PX: 24,     // finger must travel this far to count as a flick
+    WINDOW_MS: 350, // how long after contact you can still steer the ball
+  },
 
   // ---------- Coins ----------
   COINS_PER_RUN: 1,      // coins earned per run scored

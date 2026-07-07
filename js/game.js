@@ -85,6 +85,9 @@
     flightMs: CONFIG.FLIGHT_MS_START,
     streak: 0,           // consecutive boundaries
     multiplier: 1,
+    overRuns: 0,         // runs scored this over (for the over summary)
+    overWickets: 0,      // wickets lost this over
+    swipeStart: null,    // where the finger went down (for shot placement)
     swingT: -1e9,        // when the bat last swung (for animation)
     shake: 0,            // screen shake strength
     particles: [],
@@ -128,10 +131,11 @@
   }
 
   // ---------- Swinging the bat ----------
+  // Returns true when the ball was actually hit (so a flick can steer it).
   function swing() {
     const b = G.ball;
     G.swingT = performance.now();
-    if (!b || b.phase !== 'flight' || b.swung) return;
+    if (!b || b.phase !== 'flight' || b.swung) return false;
     b.swung = true;
 
     const dt = Math.abs((performance.now() - b.t0) - b.flightMs); // ms away from perfect contact
@@ -144,10 +148,10 @@
     else if (dt <= T.GOOD * w)    { runs = 2; label = '+2';    color = '#5ec8ff'; }
     else if (dt <= T.OK * w)      { runs = 1; label = '+1';    color = '#ffffff'; }
 
-    if (runs === 0) return; // swung too early/late — ball continues to the stumps…
+    if (runs === 0) return false; // swung too early/late — ball continues to the stumps…
 
     // A weak poke at a short ball can loop up to a fielder… CAUGHT!
-    if (runs === 1 && Math.random() < b.delivery.catchRisk) { wicketFalls('caught'); return; }
+    if (runs === 1 && Math.random() < b.delivery.catchRisk) { wicketFalls('caught'); return false; }
 
     // --- It's a hit! ---
     const boundary = runs >= 4;
@@ -163,6 +167,7 @@
     }
     const total = runs * G.multiplier;
     G.score += total;
+    G.overRuns += total;
     if (G.multiplier > 1) label += ` x${G.multiplier}`;
 
     // Send the ball flying off toward the crowd
@@ -183,17 +188,44 @@
     showTapHint(false);
     scheduleNext();
     updateHUD();
+    return true;
+  }
+
+  // A quick flick right after contact steers the ball — shot placement!
+  function applySwipe(dx, dy) {
+    const b = G.ball;
+    if (!b || b.phase !== 'hit' || b.caught) return;
+    if (performance.now() - b.tHit > CONFIG.SWIPE.WINDOW_MS) return;
+    const len = Math.hypot(dx, dy);
+    if (len < CONFIG.SWIPE.MIN_PX) return;
+
+    // Re-base the ball at its current position so it turns smoothly
+    const t = (performance.now() - b.tHit) / 16.7;
+    b.hitX = b.hitX + b.hitVx * t * 9;
+    b.hitY = b.hitY + b.hitVy * t * 9 + t * t * 0.12;
+    b.tHit = performance.now();
+    const power = Math.hypot(b.hitVx, b.hitVy);
+    b.hitVx = (dx / len) * power;
+    b.hitVy = (dy / len) * power;
+
+    // Name the shot like a commentator
+    let shot;
+    if (Math.abs(dx) > Math.abs(dy)) shot = dx < 0 ? '⬅ PULL SHOT!' : 'CUT SHOT! ➡';
+    else shot = dy < 0 ? '⬆ STRAIGHT DRIVE!' : 'CHEEKY SCOOP! ⬇';
+    popup(shot, '#ffffff', 22, VH * 0.52);
   }
 
   function wicketFalls(how) {
     const b = G.ball;
     G.wickets--;
+    G.overWickets++;
     G.streak = 0;
     G.multiplier = 1;
     if (how === 'caught') {
       // The ball loops gently up off the bat into a fielder's hands
       const pos = ballPos(Math.min(1, (performance.now() - b.t0) / b.flightMs));
       b.phase = 'hit';
+      b.caught = true;
       b.tHit = performance.now();
       b.hitX = pos.x; b.hitY = pos.y;
       b.hitVx = 0.25; b.hitVy = -0.9;
@@ -216,15 +248,37 @@
     setTimeout(() => {
       if (G.mode !== 'playing') return;
       if (G.wickets <= 0 || G.balls >= CONFIG.BALLS_PER_INNINGS) return endInnings();
-      // New over? Speed up!
-      if (G.balls % CONFIG.BALLS_PER_OVER === 0) {
-        G.flightMs = Math.max(CONFIG.FLIGHT_MS_MIN, G.flightMs * CONFIG.SPEEDUP_PER_OVER);
-        popup(`Over ${G.balls / CONFIG.BALLS_PER_OVER + 1} — faster!`, '#ffd93b', 26);
-      }
-      newBall();
-      Sound.whoosh();
-      updateHUD();
+      if (G.balls % CONFIG.BALLS_PER_OVER === 0) return showOverSummary();
+      nextBall();
     }, CONFIG.RESULT_PAUSE_MS);
+  }
+
+  function nextBall() {
+    newBall();
+    Sound.whoosh();
+    updateHUD();
+  }
+
+  // The scorecard moment between overs — a breather before faster bowling
+  function showOverSummary() {
+    const overNo = G.balls / CONFIG.BALLS_PER_OVER;
+    el('os-title').textContent = `End of Over ${overNo}`;
+    el('os-runs').textContent = `${G.overRuns} run${G.overRuns === 1 ? '' : 's'} this over`;
+    el('os-total').textContent = G.overWickets > 0
+      ? `Total: ${G.score}  •  ${G.overWickets} wicket${G.overWickets > 1 ? 's' : ''} lost`
+      : `Total: ${G.score}`;
+    show('over-summary');
+    if (G.overRuns >= 12) Sound.cheer(); else Sound.tap();
+
+    setTimeout(() => {
+      if (G.mode !== 'playing') return;
+      hide('over-summary');
+      G.flightMs = Math.max(CONFIG.FLIGHT_MS_MIN, G.flightMs * CONFIG.SPEEDUP_PER_OVER);
+      G.overRuns = 0;
+      G.overWickets = 0;
+      popup('⚡ Faster bowling!', '#ffd93b', 26);
+      nextBall();
+    }, CONFIG.OVER_SUMMARY_MS);
   }
 
   // ---------- Innings ----------
@@ -235,11 +289,14 @@
     G.balls = 0;
     G.streak = 0;
     G.multiplier = 1;
+    G.overRuns = 0;
+    G.overWickets = 0;
+    G.swipeStart = null;
     G.flightMs = CONFIG.FLIGHT_MS_START;
     G.particles = [];
     G.popups = [];
     show('hud');
-    hide('screen-home'); hide('screen-gameover'); hide('screen-shop'); hide('screen-howto');
+    hide('screen-home'); hide('screen-gameover'); hide('screen-shop'); hide('screen-howto'); hide('over-summary');
     updateHUD();
     newBall();
     Sound.whoosh();
@@ -278,8 +335,8 @@
     }
   }
 
-  function popup(text, color, size) {
-    G.popups.push({ text, color, size, y: VH * 0.42, life: 1 });
+  function popup(text, color, size, y) {
+    G.popups.push({ text, color, size, y: y || VH * 0.42, life: 1 });
   }
 
   function buzz(ms) {
@@ -555,7 +612,22 @@
   window.addEventListener('pointerdown', (e) => {
     if (G.mode !== 'playing') return;
     if (e.target.closest('button')) return; // let buttons be buttons
-    swing();
+    const hit = swing();
+    // Remember where the finger landed — a flick from here steers the shot
+    G.swipeStart = hit ? { x: e.clientX, y: e.clientY } : null;
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!G.swipeStart) return;
+    const dx = e.clientX - G.swipeStart.x, dy = e.clientY - G.swipeStart.y;
+    if (Math.hypot(dx, dy) >= CONFIG.SWIPE.MIN_PX) {
+      applySwipe(dx, dy);
+      G.swipeStart = null;
+    }
+  });
+  window.addEventListener('pointerup', (e) => {
+    if (!G.swipeStart) return;
+    applySwipe(e.clientX - G.swipeStart.x, e.clientY - G.swipeStart.y);
+    G.swipeStart = null;
   });
   // Space bar works too (nice for testing on a laptop)
   window.addEventListener('keydown', (e) => {
@@ -573,7 +645,7 @@
 
   function updateHUD() {
     el('hud-score').textContent = G.score;
-    el('hud-wickets').textContent = '🏏 '.repeat(G.wickets).trim() || '—';
+    el('hud-wickets').textContent = G.wickets > 5 ? `🏏 x${G.wickets}` : '🏏 '.repeat(G.wickets).trim() || '—';
     el('hud-over').textContent = `Ball ${Math.min(G.balls + 1, CONFIG.BALLS_PER_INNINGS)}/${CONFIG.BALLS_PER_INNINGS}`;
     const streakEl = el('hud-streak');
     if (G.multiplier > 1) {
