@@ -29,6 +29,9 @@ fullscreen and offline.
 - You get **12 balls and 3 wickets**. Smash the biggest score you can.
 - A bowler bowls at you; **tap anywhere** when the ball reaches your bat.
 - **Flick as you tap to place the shot** — pull, cut, straight drive, or a cheeky scoop.
+- **Fielders take up positions every ball**, leaving gaps: flick into a gap for **+2 bonus
+  runs**, but flick at a fielder and they cut it off to a single. Only a perfect **SIX**
+  sails over everyone. A plain tap is always safe (no bonus, no penalty).
 - An **over summary** scorecard shows your runs after each over — then the bowling speeds up.
 - Timing decides the shot: perfect = **SIX**, great = **FOUR**, okay = 1–2 runs, miss = **BOWLED**.
 - The AI bowler mixes up **five delivery types**, each with different consequences:

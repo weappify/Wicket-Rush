@@ -49,6 +49,18 @@ const CONFIG = {
     WINDOW_MS: 350, // how long after contact you can still steer the ball
   },
 
+  // ---------- Fielders ----------
+  // Each ball, fielders take up some of the field positions and leave
+  // gaps. Flick into a gap for bonus runs — flick at a fielder and
+  // they'll cut the shot off (only a perfect SIX clears everyone).
+  FIELDERS: {
+    COUNT: 3,        // fielders on the field each ball
+    SLOTS: 6,        // field positions they can choose from
+    CATCH_ARC: 0.36, // radians — how wide a zone each fielder covers
+    GAP_BONUS: 2,    // extra runs for finding the gap
+    FIELDED_RUNS: 1, // what a cut-off shot is worth
+  },
+
   // ---------- Coins ----------
   COINS_PER_RUN: 1,      // coins earned per run scored
 };

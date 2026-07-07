@@ -88,6 +88,7 @@
     overRuns: 0,         // runs scored this over (for the over summary)
     overWickets: 0,      // wickets lost this over
     swipeStart: null,    // where the finger went down (for shot placement)
+    fielders: [],        // where the fielders are standing this ball
     swingT: -1e9,        // when the bat last swung (for animation)
     shake: 0,            // screen shake strength
     particles: [],
@@ -102,6 +103,34 @@
     let r = Math.random() * total;
     for (const d of DELIVERIES) { r -= d.weight; if (r <= 0) return d; }
     return DELIVERIES[0];
+  }
+
+  // Scatter fielders into some of the field positions, leaving gaps.
+  // Angles are around the batter: -PI (left) → -PI/2 (straight) → 0 (right).
+  function placeFielders() {
+    const F = CONFIG.FIELDERS;
+    const slots = [...Array(F.SLOTS).keys()];
+    // shuffle and take the first COUNT slots
+    for (let i = slots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slots[i], slots[j]] = [slots[j], slots[i]];
+    }
+    const start = -Math.PI * 0.88, span = Math.PI * 0.76;
+    G.fielders = slots.slice(0, Math.min(F.COUNT, F.SLOTS)).map((s) => ({
+      angle: start + (s / Math.max(1, F.SLOTS - 1)) * span + (Math.random() - 0.5) * 0.06,
+    }));
+  }
+
+  function angleDistance(a, b) {
+    return Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+  }
+
+  // Where a fielder stands on screen (an ellipse around the batter)
+  function fielderPos(f) {
+    return {
+      x: L.cx + Math.cos(f.angle) * VW * 0.42,
+      y: L.batterY + Math.sin(f.angle) * VH * 0.36,
+    };
   }
 
   function newBall() {
@@ -119,6 +148,7 @@
       // set when hit:
       hitVx: 0, hitVy: 0, hitX: 0, hitY: 0,
     };
+    placeFielders();
     if (G.balls === 0 && save.played === 0) showTapHint(true);
   }
 
@@ -153,7 +183,81 @@
     // A weak poke at a short ball can loop up to a fielder… CAUGHT!
     if (runs === 1 && Math.random() < b.delivery.catchRisk) { wicketFalls('caught'); return false; }
 
-    // --- It's a hit! ---
+    // --- Contact! Launch the ball, but hold the score until we know
+    // where the shot was placed (flick) and whether a fielder cuts it off.
+    const pos = ballPos(Math.min(1, (performance.now() - b.t0) / b.flightMs));
+    b.phase = 'hit';
+    b.tHit = performance.now();
+    b.hitX = pos.x; b.hitY = pos.y;
+    const ang = -Math.PI / 2 + (Math.random() * 0.9 - 0.45);
+    const power = runs >= 4 ? 1.6 : 0.9;
+    b.hitVx = Math.cos(ang) * power;
+    b.hitVy = Math.sin(ang) * power;
+
+    b.pending = { runs, label, color };
+    b.finalizeTimer = setTimeout(() => finalizeShot('neutral'), CONFIG.SWIPE.WINDOW_MS + 30);
+
+    burst(pos.x, pos.y, runs >= 4 ? 26 : 12, currentSkin().trail);
+    Sound.crack();
+    showTapHint(false);
+    return true;
+  }
+
+  // A quick flick right after contact steers the ball — shot placement!
+  // Returns true if the flick was accepted (and the shot resolved).
+  function applySwipe(dx, dy) {
+    const b = G.ball;
+    if (!b || b.phase !== 'hit' || b.caught || !b.pending) return false;
+    if (performance.now() - b.tHit > CONFIG.SWIPE.WINDOW_MS) return false;
+    const len = Math.hypot(dx, dy);
+    if (len < CONFIG.SWIPE.MIN_PX) return false;
+
+    // Re-base the ball at its current position so it turns smoothly
+    const t = (performance.now() - b.tHit) / 16.7;
+    b.hitX = b.hitX + b.hitVx * t * 9;
+    b.hitY = b.hitY + b.hitVy * t * 9 + t * t * 0.12;
+    b.tHit = performance.now();
+    const power = Math.hypot(b.hitVx, b.hitVy);
+    b.hitVx = (dx / len) * power;
+    b.hitVy = (dy / len) * power;
+
+    // Name the shot like a commentator
+    let shot;
+    if (Math.abs(dx) > Math.abs(dy)) shot = dx < 0 ? '⬅ PULL SHOT!' : 'CUT SHOT! ➡';
+    else shot = dy < 0 ? '⬆ STRAIGHT DRIVE!' : 'CHEEKY SCOOP! ⬇';
+    popup(shot, '#ffffff', 22, VH * 0.52);
+
+    // Did the shot find a gap, or go straight to a fielder?
+    const shotAngle = Math.atan2(dy, dx);
+    const fielder = G.fielders.find((f) => angleDistance(shotAngle, f.angle) < CONFIG.FIELDERS.CATCH_ARC);
+    finalizeShot(fielder ? 'fielded' : 'gap', fielder);
+    return true;
+  }
+
+  // Settle the shot once placement is known: 'gap' | 'fielded' | 'neutral'
+  function finalizeShot(outcome, fielder) {
+    const b = G.ball;
+    if (!b || !b.pending) return;
+    clearTimeout(b.finalizeTimer);
+    let { runs, label, color } = b.pending;
+    b.pending = null;
+
+    if (outcome === 'fielded') {
+      if (runs >= 6) {
+        popup('OVER THE TOP! 🚀', '#ffd93b', 24, VH * 0.5); // a SIX clears everyone
+      } else {
+        runs = CONFIG.FIELDERS.FIELDED_RUNS;
+        label = 'FIELDED!'; color = '#ffb0a0';
+        if (fielder) {
+          const fp = fielderPos(fielder);
+          burst(fp.x, fp.y, 10, '#5ec8ff'); // the fielder's diving stop
+        }
+      }
+    } else if (outcome === 'gap') {
+      runs += CONFIG.FIELDERS.GAP_BONUS;
+      popup(`IN THE GAP! +${CONFIG.FIELDERS.GAP_BONUS}`, '#6fdb4e', 24, VH * 0.47);
+    }
+
     const boundary = runs >= 4;
     if (boundary) runs += b.delivery.bonus;              // brave hits off fast balls pay extra
     if (b.golden) { runs *= 2; label = '✨ ' + label + ' x2'; }
@@ -170,49 +274,10 @@
     G.overRuns += total;
     if (G.multiplier > 1) label += ` x${G.multiplier}`;
 
-    // Send the ball flying off toward the crowd
-    const pos = ballPos(Math.min(1, (performance.now() - b.t0) / G.flightMs));
-    b.phase = 'hit';
-    b.tHit = performance.now();
-    b.hitX = pos.x; b.hitY = pos.y;
-    const ang = -Math.PI / 2 + (Math.random() * 0.9 - 0.45);
-    const power = boundary ? 1.6 : 0.9;
-    b.hitVx = Math.cos(ang) * power;
-    b.hitVy = Math.sin(ang) * power;
-
-    // Juice!
-    burst(pos.x, pos.y, boundary ? 26 : 12, currentSkin().trail);
     popup(label, color, runs >= 6 ? 44 : 34);
-    Sound.crack();
-    if (boundary) { Sound.cheer(); G.shake = runs >= 6 ? 14 : 8; buzz(boundary ? 60 : 25); }
-    showTapHint(false);
+    if (boundary) { Sound.cheer(); G.shake = runs >= 6 ? 14 : 8; buzz(60); }
     scheduleNext();
     updateHUD();
-    return true;
-  }
-
-  // A quick flick right after contact steers the ball — shot placement!
-  function applySwipe(dx, dy) {
-    const b = G.ball;
-    if (!b || b.phase !== 'hit' || b.caught) return;
-    if (performance.now() - b.tHit > CONFIG.SWIPE.WINDOW_MS) return;
-    const len = Math.hypot(dx, dy);
-    if (len < CONFIG.SWIPE.MIN_PX) return;
-
-    // Re-base the ball at its current position so it turns smoothly
-    const t = (performance.now() - b.tHit) / 16.7;
-    b.hitX = b.hitX + b.hitVx * t * 9;
-    b.hitY = b.hitY + b.hitVy * t * 9 + t * t * 0.12;
-    b.tHit = performance.now();
-    const power = Math.hypot(b.hitVx, b.hitVy);
-    b.hitVx = (dx / len) * power;
-    b.hitVy = (dy / len) * power;
-
-    // Name the shot like a commentator
-    let shot;
-    if (Math.abs(dx) > Math.abs(dy)) shot = dx < 0 ? '⬅ PULL SHOT!' : 'CUT SHOT! ➡';
-    else shot = dy < 0 ? '⬆ STRAIGHT DRIVE!' : 'CHEEKY SCOOP! ⬇';
-    popup(shot, '#ffffff', 22, VH * 0.52);
   }
 
   function wicketFalls(how) {
@@ -357,6 +422,7 @@
     drawStadium();
 
     if (G.mode === 'playing' || G.mode === 'over') {
+      if (G.mode === 'playing') drawFielders();
       drawStumps(now);
       drawBatter(now);
       drawBowler(now);
@@ -446,6 +512,26 @@
     }
     ctx.restore();
     if (G.stumpsBroken && now - G.stumpsBroken >= 900) G.stumpsBroken = 0;
+  }
+
+  function drawFielders() {
+    for (const f of G.fielders) {
+      const p = fielderPos(f);
+      // A soft ring marks the zone this fielder covers
+      ctx.fillStyle = 'rgba(255,255,255,.14)';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + 16, 26, 9, 0, 0, 7);
+      ctx.fill();
+      // Body (teal kit so they read differently from bowler + batter)
+      ctx.fillStyle = '#0e9aa7';
+      ctx.beginPath(); ctx.roundRect(p.x - 8, p.y - 8, 16, 22, 6); ctx.fill();
+      // Head
+      ctx.fillStyle = '#ffcf9e';
+      ctx.beginPath(); ctx.arc(p.x, p.y - 15, 7, 0, 7); ctx.fill();
+      // Cap
+      ctx.fillStyle = '#086b75';
+      ctx.beginPath(); ctx.arc(p.x, p.y - 16.5, 7, Math.PI, 0); ctx.fill();
+    }
   }
 
   function drawBatter(now) {
@@ -626,7 +712,8 @@
   });
   window.addEventListener('pointerup', (e) => {
     if (!G.swipeStart) return;
-    applySwipe(e.clientX - G.swipeStart.x, e.clientY - G.swipeStart.y);
+    // No real flick? The shot resolves as neutral — safe, but no gap bonus.
+    if (!applySwipe(e.clientX - G.swipeStart.x, e.clientY - G.swipeStart.y)) finalizeShot('neutral');
     G.swipeStart = null;
   });
   // Space bar works too (nice for testing on a laptop)
