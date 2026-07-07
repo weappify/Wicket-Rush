@@ -44,6 +44,17 @@ fullscreen and offline.
 - Runs become 🪙 coins. Spend them in the **Bat Shop** on cosmetic bat skins.
 - Your **top 5 scores** live on the results screen. **Challenge a friend** shares your score.
 
+### The "come back tomorrow" loop 🔁
+
+- **📅 Daily Challenge** — the same 12 balls and field for *every player that day* (seeded, no
+  server). A fair race you can screenshot and challenge friends to beat.
+- **🔥 Play streak** — play the daily on consecutive days to grow your streak; skip a day and it resets.
+- **🎯 Daily Missions** — three goals a day ("hit 3 sixes", "find the gap 4 times") that pay coins.
+- **🏆 Trophy Road** — every run earns career trophies that never reset; passing milestones unlocks
+  characters and bat skins, and climbs you through leagues (Bronze → Legend).
+- **🧑‍🎤 Collectible batters** — unlock characters with light abilities (bigger six window, an extra
+  wicket, more golden balls, bigger gap bonus). Collection + variety, never pay-to-win.
+
 ## 🧭 Why web-first (and when Unity)
 
 This MVP is deliberately a web/PWA build, matching the "mobile web version first, then
@@ -59,11 +70,15 @@ transfers directly whichever path we take.
 
 | File | What it does | Difficulty to modify |
 |---|---|---|
-| `js/config.js` | **Every game number** — speeds, timing windows, prices, skins | ⭐ Start here! |
+| `js/config.js` | **Every game number** — speeds, timing, prices, skins, characters, missions, trophy road | ⭐ Start here! |
 | `css/style.css` | Colors, buttons, menus | ⭐⭐ |
 | `js/audio.js` | All sound effects (synthesized in code!) | ⭐⭐ |
+| `js/progression.js` | Daily challenge, streak, missions, trophies, characters (the "come back" loop) | ⭐⭐⭐ |
 | `js/game.js` | The game itself — drawing, physics, scoring | ⭐⭐⭐ |
 | `sw.js` / `manifest.webmanifest` | Makes it installable & offline | ⭐⭐⭐ |
+
+Want a new mission, character, or Trophy Road reward? They're all plain data lists at the bottom
+of `js/config.js` (`MISSION_POOL`, `CHARACTERS`, `TROPHY_ROAD`) — add a line and it just appears.
 
 ### Fun first projects (great for a 14-year-old co-developer)
 

@@ -240,6 +240,125 @@ h2 {
 }
 .board-row.me { color: #ffd93b; }
 
+/* ---------- Home top status bar ---------- */
+.home-top {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
+  right: 74px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.stat-chip {
+  border: none;
+  background: rgba(0, 40, 70, .5);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+#home-streak { background: linear-gradient(#ff7a3c, #e8420e); }
+
+.btn-daily {
+  font-size: 20px;
+  padding: 14px 34px;
+  background: linear-gradient(#ffd93b, #f2a413);
+  color: #16496e;
+}
+.sub-note { color: #eaf6ff; font-size: 15px; font-weight: 700; margin-top: -6px; text-align: center; }
+
+/* ---------- Missions ---------- */
+#missions-list, #chars-list, #trophy-road {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(440px, 94%);
+  max-height: 58vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.mission {
+  background: rgba(255,255,255,.94);
+  border-radius: 16px;
+  padding: 12px 16px;
+}
+.mission-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.mission-text { font-weight: 800; color: #16496e; font-size: 16px; }
+.mission-reward { font-weight: 900; color: #f28a00; font-size: 15px; white-space: nowrap; }
+.mission-bar { height: 12px; background: #dfe7ec; border-radius: 999px; margin-top: 10px; overflow: hidden; }
+.mission-fill { height: 100%; background: linear-gradient(90deg, #6fdb4e, #3fae2a); border-radius: 999px; transition: width .3s; }
+.mission-claim {
+  border: none; border-radius: 999px; font-weight: 900; font-size: 14px;
+  padding: 8px 16px; color: #fff; background: linear-gradient(#6fdb4e, #3fae2a); cursor: pointer;
+}
+.mission-claim[disabled] { background: #b9c4cc; }
+.mission-claim.done { background: #5ec8ff; }
+
+/* ---------- Characters ---------- */
+.char {
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(255,255,255,.94); border-radius: 16px; padding: 12px 16px;
+}
+.char-emoji {
+  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.2);
+}
+.char-info { flex: 1; }
+.char-name { font-weight: 900; color: #16496e; font-size: 17px; }
+.char-desc { color: #4a6b82; font-size: 13px; font-weight: 600; }
+.char-btn {
+  border: none; border-radius: 999px; font-weight: 900; font-size: 14px;
+  padding: 9px 16px; color: #fff; background: linear-gradient(#6fdb4e, #3fae2a); cursor: pointer;
+}
+.char-btn.equipped { background: linear-gradient(#5ec8ff, #2a92cf); }
+.char-btn.locked { background: #b9c4cc; }
+
+/* ---------- Trophy road ---------- */
+.tr-item {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,.9); border-radius: 14px; padding: 10px 14px;
+}
+.tr-item.reached { background: rgba(111,219,78,.92); }
+.tr-trophies { font-weight: 900; color: #16496e; min-width: 66px; }
+.tr-reward { flex: 1; font-weight: 800; color: #16496e; font-size: 15px; }
+.tr-check { font-size: 18px; }
+
+/* ---------- Game-over reward badges ---------- */
+.go-rewards { display: flex; gap: 10px; }
+.trophy-badge { color: #fff; }
+.go-unlocks { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.go-unlock {
+  background: linear-gradient(#ffd93b, #f2a413); color: #16496e;
+  font-weight: 900; font-size: 15px; padding: 8px 18px; border-radius: 999px;
+  animation: pulse .5s infinite alternate;
+}
+
+/* ---------- Toast ---------- */
+#toast {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: linear-gradient(#6fdb4e, #3fae2a);
+  color: #fff;
+  font-weight: 900;
+  font-size: 17px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  pointer-events: none;
+  animation: toast-in .3s ease-out;
+}
+@keyframes toast-in {
+  from { transform: translate(-50%, -20px); opacity: 0; }
+  to   { transform: translate(-50%, 0); opacity: 1; }
+}
+
 /* ---------- End-of-over scorecard ---------- */
 #over-summary {
   position: fixed;

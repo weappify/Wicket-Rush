@@ -35,6 +35,12 @@
 
   <!-- ============ HOME SCREEN ============ -->
   <div id="screen-home" class="screen">
+    <!-- top status bar: league rank + play streak -->
+    <div class="home-top">
+      <button id="btn-trophies" class="stat-chip"><span id="home-league">🥉 Bronze</span> · 🏆 <span id="home-trophies">0</span></button>
+      <div id="home-streak" class="stat-chip hidden">🔥 <span id="home-streak-n">0</span></div>
+    </div>
+
     <div class="logo">
       <span class="logo-top">WICKET</span>
       <span class="logo-bottom">RUSH</span>
@@ -42,12 +48,41 @@
     </div>
     <div id="home-best" class="best-badge">Best: 0</div>
     <button id="btn-play" class="btn btn-big">▶ PLAY</button>
+    <button id="btn-daily" class="btn btn-daily">📅 Daily Challenge</button>
+    <div class="btn-row">
+      <button id="btn-missions" class="btn btn-mid">🎯 Missions</button>
+      <button id="btn-chars" class="btn btn-mid">🧑‍🎤 Batters</button>
+    </div>
     <div class="btn-row">
       <button id="btn-shop" class="btn btn-mid">🛍 Shop</button>
       <button id="btn-howto" class="btn btn-mid">❓ How</button>
     </div>
     <div id="home-coins" class="coin-badge">🪙 0</div>
     <button id="btn-mute" class="btn btn-round">🔊</button>
+  </div>
+
+  <!-- ============ MISSIONS ============ -->
+  <div id="screen-missions" class="screen hidden">
+    <h2>🎯 Daily Missions</h2>
+    <div class="sub-note">New missions every day. Finish one to claim coins!</div>
+    <div id="missions-list"></div>
+    <button id="btn-missions-back" class="btn btn-big">Back</button>
+  </div>
+
+  <!-- ============ TROPHY ROAD ============ -->
+  <div id="screen-trophies" class="screen hidden">
+    <h2>🏆 Trophy Road</h2>
+    <div id="trophy-header" class="coin-badge">🥉 Bronze · 0 🏆</div>
+    <div id="trophy-road"></div>
+    <button id="btn-trophies-back" class="btn btn-big">Back</button>
+  </div>
+
+  <!-- ============ CHARACTERS ============ -->
+  <div id="screen-chars" class="screen hidden">
+    <h2>🧑‍🎤 Pick Your Batter</h2>
+    <div class="sub-note">Unlock more on the Trophy Road!</div>
+    <div id="chars-list"></div>
+    <button id="btn-chars-back" class="btn btn-big">Back</button>
   </div>
 
   <!-- ============ HOW TO PLAY ============ -->
@@ -60,6 +95,7 @@
     <div class="howto-card">🎯 Perfect timing = SIX! Miss = wicket gone</div>
     <div class="howto-card">⚡ Watch out — fast balls, slower balls, yorkers and short balls all behave differently</div>
     <div class="howto-card">🔥 Boundaries in a row = score multiplier. ✨ Golden balls = double runs</div>
+    <div class="howto-card">📅 Come back daily for the Daily Challenge & missions — build your 🔥 streak and climb the Trophy Road!</div>
     <button id="btn-howto-back" class="btn btn-big">Got it!</button>
   </div>
 
@@ -76,7 +112,11 @@
     <h2 id="go-title">Innings Over!</h2>
     <div id="go-score" class="go-score">0</div>
     <div id="go-sub" class="go-sub"></div>
-    <div id="go-coins" class="coin-badge">🪙 +0</div>
+    <div class="go-rewards">
+      <div id="go-coins" class="coin-badge">🪙 +0</div>
+      <div id="go-trophies" class="coin-badge trophy-badge">🏆 +0</div>
+    </div>
+    <div id="go-unlocks" class="go-unlocks"></div>
     <div id="go-board" class="board"></div>
     <button id="btn-again" class="btn btn-big">▶ Bat Again</button>
     <div class="btn-row">
@@ -96,7 +136,11 @@
     <div class="os-next">⚡ The bowling gets faster!</div>
   </div>
 
+  <!-- Mission-complete toast -->
+  <div id="toast" class="hidden"></div>
+
   <script src="js/config.js"></script>
+  <script src="js/progression.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/game.js"></script>
   <script>

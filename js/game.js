@@ -94,13 +94,16 @@
     particles: [],
     popups: [],          // floating "+6" style texts
     stumpsBroken: 0,     // animation timer after a wicket
+    daily: false,        // is this the Daily Challenge?
+    rng: Math.random,    // random source — seeded in daily mode so it's fair for all
+    counters: {},        // per-game tallies for missions (sixes, gaps, …)
   };
 
   // ---------- The ball state machine ----------
   // phase: 'runup' → 'flight' → 'hit' | 'bowled' → (pause) → next ball
   function pickDelivery() {
     const total = DELIVERIES.reduce((s, d) => s + d.weight, 0);
-    let r = Math.random() * total;
+    let r = G.rng() * total;
     for (const d of DELIVERIES) { r -= d.weight; if (r <= 0) return d; }
     return DELIVERIES[0];
   }
@@ -112,12 +115,12 @@
     const slots = [...Array(F.SLOTS).keys()];
     // shuffle and take the first COUNT slots
     for (let i = slots.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(G.rng() * (i + 1));
       [slots[i], slots[j]] = [slots[j], slots[i]];
     }
     const start = -Math.PI * 0.88, span = Math.PI * 0.76;
     G.fielders = slots.slice(0, Math.min(F.COUNT, F.SLOTS)).map((s) => ({
-      angle: start + (s / Math.max(1, F.SLOTS - 1)) * span + (Math.random() - 0.5) * 0.06,
+      angle: start + (s / Math.max(1, F.SLOTS - 1)) * span + (G.rng() - 0.5) * 0.06,
     }));
   }
 
@@ -134,13 +137,14 @@
   }
 
   function newBall() {
-    const golden = G.balls >= CONFIG.GOLDEN_MIN_BALL && Math.random() < CONFIG.GOLDEN_BALL_CHANCE;
+    const goldenChance = CONFIG.GOLDEN_BALL_CHANCE * (Progress.ability().goldenChanceMult || 1);
+    const golden = G.balls >= CONFIG.GOLDEN_MIN_BALL && G.rng() < goldenChance;
     const delivery = pickDelivery();
     G.ball = {
       phase: 'runup',
       t0: performance.now(),
-      releaseX: L.cx + (Math.random() * 60 - 30),          // bowler varies position
-      curve: (Math.random() * 2 - 1) * CONFIG.SWING_CURVE_MAX, // sideways swing
+      releaseX: L.cx + (G.rng() * 60 - 30),          // bowler varies position
+      curve: (G.rng() * 2 - 1) * CONFIG.SWING_CURVE_MAX, // sideways swing
       golden,
       delivery,
       flightMs: G.flightMs * delivery.flight,  // this ball's actual speed
@@ -171,9 +175,10 @@
     const dt = Math.abs((performance.now() - b.t0) - b.flightMs); // ms away from perfect contact
     const T = CONFIG.TIMING;
     const w = b.delivery.window; // yorkers shrink the windows, short balls widen them
+    const pMult = Progress.ability().perfectMult || 1; // some batters get a bigger SIX window
 
     let runs = 0, label = '', color = '#fff';
-    if      (dt <= T.PERFECT * w) { runs = 6; label = 'SIX!';  color = '#ffd93b'; }
+    if      (dt <= T.PERFECT * w * pMult) { runs = 6; label = 'SIX!';  color = '#ffd93b'; }
     else if (dt <= T.GREAT * w)   { runs = 4; label = 'FOUR!'; color = '#6fdb4e'; }
     else if (dt <= T.GOOD * w)    { runs = 2; label = '+2';    color = '#5ec8ff'; }
     else if (dt <= T.OK * w)      { runs = 1; label = '+1';    color = '#ffffff'; }
@@ -181,7 +186,7 @@
     if (runs === 0) return false; // swung too early/late — ball continues to the stumps…
 
     // A weak poke at a short ball can loop up to a fielder… CAUGHT!
-    if (runs === 1 && Math.random() < b.delivery.catchRisk) { wicketFalls('caught'); return false; }
+    if (runs === 1 && G.rng() < b.delivery.catchRisk) { wicketFalls('caught'); return false; }
 
     // --- Contact! Launch the ball, but hold the score until we know
     // where the shot was placed (flick) and whether a fielder cuts it off.
@@ -189,7 +194,7 @@
     b.phase = 'hit';
     b.tHit = performance.now();
     b.hitX = pos.x; b.hitY = pos.y;
-    const ang = -Math.PI / 2 + (Math.random() * 0.9 - 0.45);
+    const ang = -Math.PI / 2 + (G.rng() * 0.9 - 0.45);
     const power = runs >= 4 ? 1.6 : 0.9;
     b.hitVx = Math.cos(ang) * power;
     b.hitVy = Math.sin(ang) * power;
@@ -254,13 +259,16 @@
         }
       }
     } else if (outcome === 'gap') {
-      runs += CONFIG.FIELDERS.GAP_BONUS;
-      popup(`IN THE GAP! +${CONFIG.FIELDERS.GAP_BONUS}`, '#6fdb4e', 24, VH * 0.47);
+      const gapBonus = CONFIG.FIELDERS.GAP_BONUS + (Progress.ability().gapBonus || 0);
+      runs += gapBonus;
+      popup(`IN THE GAP! +${gapBonus}`, '#6fdb4e', 24, VH * 0.47);
+      bumpMission('gaps', 1);
     }
 
+    const timingRuns = runs;                 // the shot the timing earned, before golden
     const boundary = runs >= 4;
     if (boundary) runs += b.delivery.bonus;              // brave hits off fast balls pay extra
-    if (b.golden) { runs *= 2; label = '✨ ' + label + ' x2'; }
+    if (b.golden) { runs *= 2; label = '✨ ' + label + ' x2'; bumpMission('golden', 1); }
 
     if (boundary) {
       G.streak++;
@@ -274,10 +282,23 @@
     G.overRuns += total;
     if (G.multiplier > 1) label += ` x${G.multiplier}`;
 
+    // Mission tallies (based on the shot the timing produced)
+    if (timingRuns >= 6) bumpMission('sixes', 1);
+    if (boundary) {
+      bumpMission('boundaries', 1);
+      if (timingRuns === 4) bumpMission('fours', 1);
+    }
+
     popup(label, color, runs >= 6 ? 44 : 34);
     if (boundary) { Sound.cheer(); G.shake = runs >= 6 ? 14 : 8; buzz(60); }
     scheduleNext();
     updateHUD();
+  }
+
+  // Push mission progress and toast anything that just completed.
+  function bumpMission(type, n) {
+    const done = Progress.addMissionProgress(type, n);
+    for (const d of done) toast(`🎯 ${d.text} done! +${d.reward}🪙`);
   }
 
   function wicketFalls(how) {
@@ -347,10 +368,14 @@
   }
 
   // ---------- Innings ----------
-  function startInnings() {
+  function startInnings(daily) {
     G.mode = 'playing';
+    G.daily = !!daily;
+    // Daily Challenge uses a seeded random source so every player worldwide
+    // faces the exact same deliveries and field today — a fair race.
+    G.rng = daily ? Progress.makeRng(Progress.dailyInfo().seed) : Math.random;
     G.score = 0;
-    G.wickets = CONFIG.WICKETS;
+    G.wickets = CONFIG.WICKETS + (Progress.ability().extraWickets || 0); // The Wall
     G.balls = 0;
     G.streak = 0;
     G.multiplier = 1;
@@ -361,7 +386,8 @@
     G.particles = [];
     G.popups = [];
     show('hud');
-    hide('screen-home'); hide('screen-gameover'); hide('screen-shop'); hide('screen-howto'); hide('over-summary');
+    ['screen-home','screen-gameover','screen-shop','screen-howto','screen-missions','screen-trophies','screen-chars','over-summary']
+      .forEach(hide);
     updateHUD();
     newBall();
     Sound.whoosh();
@@ -371,7 +397,23 @@
     G.mode = 'over';
     save.played = save.played + 1;
     const coins = G.score * CONFIG.COINS_PER_RUN;
-    save.coins = save.coins + coins;
+    Progress.addCoins(coins);
+
+    // Career trophies (never lost) + Trophy Road unlocks
+    let trophyGain = G.score * CONFIG.TROPHIES_PER_RUN;
+    let dailyLine = '';
+    if (G.daily) {
+      const d = Progress.recordDaily(G.score);
+      trophyGain += d.bonus;
+      dailyLine = d.firstToday ? `  •  🔥 ${d.streak}-day streak!` : '';
+    }
+    const unlocks = Progress.addTrophies(trophyGain);
+
+    // Post-game missions
+    bumpScoreOneGame(G.score); // "score N in one game" — a best, not a sum
+    bumpMission('runsTotal', G.score);
+    bumpMission('gamesPlayed', 1);
+
     const isBest = G.score > save.best;
     if (isBest) save.best = G.score;
 
@@ -379,16 +421,46 @@
     const scores = [...save.scores, G.score].sort((a, b) => b - a).slice(0, CONFIG.LEADERBOARD_SIZE);
     save.scores = scores;
 
-    el('go-title').textContent = isBest ? '🏆 NEW BEST!' : 'Innings Over!';
+    el('go-title').textContent = isBest ? '🏆 NEW BEST!' : (G.daily ? '📅 Daily Done!' : 'Innings Over!');
     el('go-score').textContent = G.score;
-    el('go-sub').textContent = `${G.balls} balls  •  Best: ${save.best}`;
+    el('go-sub').textContent = `${G.balls} balls  •  Best: ${save.best}${dailyLine}`;
     el('go-coins').textContent = `🪙 +${coins}`;
+    el('go-trophies').textContent = `🏆 +${trophyGain}`;
     el('go-board').innerHTML = scores
       .map((s, i) => `<div class="board-row${s === G.score ? ' me' : ''}">${['🥇','🥈','🥉','4.','5.'][i]} ${s}</div>`)
       .join('');
+
+    // Show any Trophy Road rewards we just unlocked
+    el('go-unlocks').innerHTML = unlocks.map(rewardToText).map(t => `<div class="go-unlock">🎉 Unlocked: ${t}</div>`).join('');
+    if (unlocks.length) buzz(120);
+
     hide('hud');
     show('screen-gameover');
     if (coins > 0) Sound.coin();
+  }
+
+  // "Score N in one game" is a personal best, not a running total — so set the
+  // mission's progress to this game's score if it's higher, and toast if done.
+  function bumpScoreOneGame(score) {
+    const state = Progress.missions();
+    let changed = false;
+    for (const m of state.list) {
+      const def = Progress.missionDef(m.id);
+      if (!def || def.type !== 'scoreOneGame' || m.claimed) continue;
+      if (score > m.progress) {
+        const wasDone = m.progress >= def.target;
+        m.progress = score; changed = true;
+        if (!wasDone && score >= def.target) toast(`🎯 ${def.text} done! +${def.reward}🪙`);
+      }
+    }
+    if (changed) localStorage.setItem('wr_missions', JSON.stringify(state));
+  }
+
+  function rewardToText(r) {
+    if (r.type === 'coins') return `${r.amount} 🪙`;
+    if (r.type === 'character') { const c = CHARACTERS.find(x => x.id === r.id); return `${c.emoji} ${c.name}`; }
+    if (r.type === 'skin') { const s = SKINS.find(x => x.id === r.id); return `${s.name} bat`; }
+    return '';
   }
 
   // ---------- Particles & popups (the "juice") ----------
@@ -536,14 +608,15 @@
 
   function drawBatter(now) {
     const skin = currentSkin();
+    const char = Progress.characterData();      // the chosen batter's kit colour
     const sw = Math.min(1, (now - G.swingT) / 260); // swing animation 0→1
     const batAngle = sw < 1 ? -2.4 * Math.sin(sw * Math.PI) : 0;
 
     ctx.save();
     ctx.translate(L.cx - 34, L.batterY);
 
-    // Body
-    ctx.fillStyle = '#2a6fd6';
+    // Body (coloured by the chosen character)
+    ctx.fillStyle = char.color;
     ctx.beginPath();
     ctx.roundRect(-12, -18, 24, 34, 8);
     ctx.fill();
@@ -554,7 +627,7 @@
     // Head + helmet
     ctx.fillStyle = '#ffcf9e';
     ctx.beginPath(); ctx.arc(0, -30, 11, 0, 7); ctx.fill();
-    ctx.fillStyle = '#1d4f9c';
+    ctx.fillStyle = char.color;
     ctx.beginPath(); ctx.arc(0, -32, 11, Math.PI, 0); ctx.fill();
     ctx.fillRect(-11, -32, 22, 4);
 
@@ -747,6 +820,119 @@
     el('home-best').textContent = `Best: ${save.best}`;
     el('home-coins').textContent = `🪙 ${save.coins}`;
     el('btn-mute').textContent = Sound.isMuted() ? '🔇' : '🔊';
+
+    const lg = Progress.league();
+    el('home-league').textContent = `${lg.icon} ${lg.name}`;
+    el('home-trophies').textContent = Progress.trophies();
+
+    const s = Progress.streakInfo();
+    const streakEl = el('home-streak');
+    if (s.alive && s.streak > 0) {
+      el('home-streak-n').textContent = s.streak;
+      streakEl.classList.remove('hidden');
+    } else {
+      streakEl.classList.add('hidden');
+    }
+
+    // Nudge the Daily button if today's challenge is still unplayed
+    const d = Progress.dailyInfo();
+    el('btn-daily').textContent = d.alreadyDone ? '📅 Daily (done ✓)' : '📅 Daily Challenge';
+  }
+
+  // A short celebratory banner (mission complete, etc.)
+  let toastTimer = null;
+  function toast(msg) {
+    const t = el('toast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    Sound.coin();
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add('hidden'), 2200);
+  }
+
+  // ---------- Missions screen ----------
+  function renderMissions() {
+    const state = Progress.missions();
+    const list = el('missions-list');
+    list.innerHTML = '';
+    for (const m of state.list) {
+      const def = Progress.missionDef(m.id);
+      if (!def) continue;
+      const done = m.progress >= def.target;
+      const pct = Math.min(100, Math.round((m.progress / def.target) * 100));
+
+      const row = document.createElement('div');
+      row.className = 'mission';
+      const claimBtn = m.claimed
+        ? `<button class="mission-claim done" disabled>✓ Claimed</button>`
+        : done
+          ? `<button class="mission-claim" data-id="${m.id}">Claim +${def.reward}🪙</button>`
+          : `<span class="mission-reward">+${def.reward}🪙</span>`;
+      row.innerHTML = `
+        <div class="mission-top">
+          <div class="mission-text">${def.text}</div>
+          ${claimBtn}
+        </div>
+        <div class="mission-bar"><div class="mission-fill" style="width:${pct}%"></div></div>
+        <div class="mission-reward" style="font-size:13px;margin-top:6px;color:#4a6b82">${Math.min(m.progress, def.target)} / ${def.target}</div>`;
+      list.appendChild(row);
+    }
+    list.querySelectorAll('.mission-claim[data-id]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const reward = Progress.claimMission(b.dataset.id);
+        if (reward) { toast(`+${reward} 🪙 claimed!`); buzz(30); }
+        renderMissions();
+      });
+    });
+  }
+
+  // ---------- Characters screen ----------
+  function renderChars() {
+    const owned = Progress.ownedChars();
+    const current = Progress.character();
+    const list = el('chars-list');
+    list.innerHTML = '';
+    for (const c of CHARACTERS) {
+      const isOwned = owned.includes(c.id);
+      const equipped = current === c.id;
+      // Where is this character unlocked on the Trophy Road?
+      const road = Progress.TROPHY_ROAD.find(r => r.reward.type === 'character' && r.reward.id === c.id);
+      const row = document.createElement('div');
+      row.className = 'char';
+      let btn;
+      if (equipped)      btn = `<button class="char-btn equipped" disabled>✓ Picked</button>`;
+      else if (isOwned)  btn = `<button class="char-btn" data-id="${c.id}">Pick</button>`;
+      else               btn = `<button class="char-btn locked" disabled>🔒 ${road ? road.trophies + '🏆' : ''}</button>`;
+      row.innerHTML = `
+        <div class="char-emoji" style="background:${c.color}">${c.emoji}</div>
+        <div class="char-info">
+          <div class="char-name">${c.name}</div>
+          <div class="char-desc">${c.desc}</div>
+        </div>${btn}`;
+      list.appendChild(row);
+    }
+    list.querySelectorAll('.char-btn[data-id]').forEach((b) => {
+      b.addEventListener('click', () => { Progress.setCharacter(b.dataset.id); Sound.tap(); renderChars(); });
+    });
+  }
+
+  // ---------- Trophy Road screen ----------
+  function renderTrophyRoad() {
+    const t = Progress.trophies();
+    const lg = Progress.league();
+    el('trophy-header').textContent = `${lg.icon} ${lg.name} · ${t} 🏆`;
+    const road = el('trophy-road');
+    road.innerHTML = '';
+    for (const m of Progress.TROPHY_ROAD) {
+      const reached = t >= m.trophies;
+      const row = document.createElement('div');
+      row.className = 'tr-item' + (reached ? ' reached' : '');
+      row.innerHTML = `
+        <div class="tr-trophies">${m.trophies} 🏆</div>
+        <div class="tr-reward">${rewardToText(m.reward)}</div>
+        <div class="tr-check">${reached ? '✓' : '🔒'}</div>`;
+      road.appendChild(row);
+    }
   }
 
   // ---------- Shop ----------
@@ -793,12 +979,26 @@
   }
 
   // ---------- Buttons ----------
-  el('btn-play').addEventListener('click', () => { Sound.tap(); startInnings(); });
-  el('btn-again').addEventListener('click', () => { Sound.tap(); startInnings(); });
+  el('btn-play').addEventListener('click', () => { Sound.tap(); startInnings(false); });
+  el('btn-daily').addEventListener('click', () => { Sound.tap(); startInnings(true); });
+  el('btn-again').addEventListener('click', () => { Sound.tap(); startInnings(G.daily); });
   el('btn-home').addEventListener('click', () => {
     Sound.tap(); G.mode = 'home';
     hide('screen-gameover'); show('screen-home'); updateHome();
   });
+
+  // Simple screen navigation helper
+  function goto(from, to, onShow) {
+    Sound.tap(); hide(from);
+    if (onShow) onShow();
+    show(to);
+  }
+  el('btn-missions').addEventListener('click', () => goto('screen-home', 'screen-missions', renderMissions));
+  el('btn-missions-back').addEventListener('click', () => goto('screen-missions', 'screen-home', updateHome));
+  el('btn-chars').addEventListener('click', () => goto('screen-home', 'screen-chars', renderChars));
+  el('btn-chars-back').addEventListener('click', () => goto('screen-chars', 'screen-home', updateHome));
+  el('btn-trophies').addEventListener('click', () => goto('screen-home', 'screen-trophies', renderTrophyRoad));
+  el('btn-trophies-back').addEventListener('click', () => goto('screen-trophies', 'screen-home', updateHome));
   el('btn-shop').addEventListener('click', () => {
     Sound.tap(); renderShop();
     hide('screen-home'); show('screen-shop');
@@ -821,7 +1021,9 @@
   });
   el('btn-share').addEventListener('click', async () => {
     Sound.tap();
-    const text = `🏏 I smashed ${G.score} runs in Wicket Rush! Think you can beat me?`;
+    const text = G.daily
+      ? `🏏 I scored ${G.score} in today's Wicket Rush Daily Challenge! Same 12 balls for everyone — beat me!`
+      : `🏏 I smashed ${G.score} runs in Wicket Rush! Think you can beat me?`;
     const url = location.href;
     if (navigator.share) {
       try { await navigator.share({ title: 'Wicket Rush', text, url }); } catch (e) { /* user cancelled */ }

@@ -63,7 +63,75 @@ const CONFIG = {
 
   // ---------- Coins ----------
   COINS_PER_RUN: 1,      // coins earned per run scored
+
+  // ---------- Trophies ----------
+  TROPHIES_PER_RUN: 1,   // trophies earned per run (career total — never lost)
+  DAILY_BONUS_TROPHIES: 15, // extra trophies the first time you play the daily
 };
+
+/* ---------- Collectible batters (characters) ----------
+   Each has a light ability so picking one changes how you play — but no
+   character is "pay to win": abilities are small and the game stays skill-first.
+   ability keys the code understands: perfectMult, extraWickets, goldenMult, gapBonus  */
+const CHARACTERS = [
+  { id: 'rookie',  name: 'Rookie',      emoji: '🧢', color: '#2a6fd6',
+    desc: 'A balanced all-rounder. Great for learning.',      ability: {} },
+  { id: 'slugger', name: 'Big Bash Bo', emoji: '💥', color: '#e8420e',
+    desc: 'Bigger SIX timing window — born to smash.',        ability: { perfectMult: 1.35 } },
+  { id: 'wall',    name: 'The Wall',    emoji: '🧱', color: '#8a5a2b',
+    desc: 'Starts every innings with one extra wicket.',      ability: { extraWickets: 1 } },
+  { id: 'lucky',   name: 'Lucky Luna',  emoji: '🍀', color: '#2fae5a',
+    desc: 'Golden balls appear twice as often.',              ability: { goldenChanceMult: 2 } },
+  { id: 'ninja',   name: 'Gap Ninja',   emoji: '🥷', color: '#5b3fb0',
+    desc: 'Finding a gap pays +1 extra run.',                 ability: { gapBonus: 1 } },
+];
+
+/* ---------- Trophy Road ----------
+   Milestones you pass as your career trophy total grows. Each hands out a
+   reward automatically — a new character, a bat skin, or a pile of coins.
+   This is the long-term "climb" that keeps kids coming back.
+   reward types: 'character' | 'skin' | 'coins'  */
+const TROPHY_ROAD = [
+  { trophies: 40,   reward: { type: 'coins', amount: 100 } },
+  { trophies: 90,   reward: { type: 'character', id: 'slugger' } },
+  { trophies: 180,  reward: { type: 'skin', id: 'neon' } },
+  { trophies: 320,  reward: { type: 'character', id: 'wall' } },
+  { trophies: 500,  reward: { type: 'coins', amount: 300 } },
+  { trophies: 750,  reward: { type: 'character', id: 'lucky' } },
+  { trophies: 1100, reward: { type: 'skin', id: 'galaxy' } },
+  { trophies: 1600, reward: { type: 'character', id: 'ninja' } },
+  { trophies: 2400, reward: { type: 'skin', id: 'gold' } },
+];
+
+/* ---------- Leagues (rank badges) ----------
+   Just a friendly name + colour for your current trophy total, shown on the
+   home screen. Climbing into a new league feels like levelling up.  */
+const LEAGUES = [
+  { name: 'Bronze',   min: 0,    color: '#cd7f32', icon: '🥉' },
+  { name: 'Silver',   min: 100,  color: '#b8c4cc', icon: '🥈' },
+  { name: 'Gold',     min: 300,  color: '#ffd93b', icon: '🥇' },
+  { name: 'Platinum', min: 600,  color: '#5ec8ff', icon: '💎' },
+  { name: 'Diamond',  min: 1100, color: '#7dd3ff', icon: '💠' },
+  { name: 'Legend',   min: 2000, color: '#b06cff', icon: '👑' },
+];
+
+/* ---------- Missions ----------
+   Three are active each day. Progress builds up across every game you play
+   that day; finish one to claim its coin reward. New set every day.
+   type keys the code understands:
+     sixes, fours, boundaries, gaps, golden, scoreOneGame, runsTotal, gamesPlayed  */
+const MISSION_POOL = [
+  { id: 'm_six3',    type: 'sixes',       target: 3,  reward: 40,  text: 'Hit 3 SIXES' },
+  { id: 'm_six6',    type: 'sixes',       target: 6,  reward: 80,  text: 'Hit 6 SIXES' },
+  { id: 'm_four5',   type: 'fours',       target: 5,  reward: 40,  text: 'Hit 5 FOURS' },
+  { id: 'm_bnd8',    type: 'boundaries',  target: 8,  reward: 60,  text: 'Hit 8 boundaries' },
+  { id: 'm_gap4',    type: 'gaps',        target: 4,  reward: 60,  text: 'Find the gap 4 times' },
+  { id: 'm_gold2',   type: 'golden',      target: 2,  reward: 70,  text: 'Smash 2 GOLDEN balls' },
+  { id: 'm_score25', type: 'scoreOneGame',target: 25, reward: 60,  text: 'Score 25 in one game' },
+  { id: 'm_score40', type: 'scoreOneGame',target: 40, reward: 120, text: 'Score 40 in one game' },
+  { id: 'm_runs80',  type: 'runsTotal',   target: 80, reward: 70,  text: 'Score 80 runs total' },
+  { id: 'm_play3',   type: 'gamesPlayed', target: 3,  reward: 40,  text: 'Play 3 games' },
+];
 
 /* ---------- Delivery types (the AI bowler's bag of tricks) ----------
    weight   : how often the bowler picks it (relative)
