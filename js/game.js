@@ -67,6 +67,8 @@
     set skin(v)  { localStorage.setItem('wr_skin', v); },
     get played() { return +localStorage.getItem('wr_played') || 0; },
     set played(v){ localStorage.setItem('wr_played', v); },
+    get scores() { return JSON.parse(localStorage.getItem('wr_scores') || '[]'); },
+    set scores(v){ localStorage.setItem('wr_scores', JSON.stringify(v)); },
   };
 
   function currentSkin() {
@@ -92,14 +94,24 @@
 
   // ---------- The ball state machine ----------
   // phase: 'runup' → 'flight' → 'hit' | 'bowled' → (pause) → next ball
+  function pickDelivery() {
+    const total = DELIVERIES.reduce((s, d) => s + d.weight, 0);
+    let r = Math.random() * total;
+    for (const d of DELIVERIES) { r -= d.weight; if (r <= 0) return d; }
+    return DELIVERIES[0];
+  }
+
   function newBall() {
     const golden = G.balls >= CONFIG.GOLDEN_MIN_BALL && Math.random() < CONFIG.GOLDEN_BALL_CHANCE;
+    const delivery = pickDelivery();
     G.ball = {
       phase: 'runup',
       t0: performance.now(),
       releaseX: L.cx + (Math.random() * 60 - 30),          // bowler varies position
       curve: (Math.random() * 2 - 1) * CONFIG.SWING_CURVE_MAX, // sideways swing
       golden,
+      delivery,
+      flightMs: G.flightMs * delivery.flight,  // this ball's actual speed
       swung: false,
       // set when hit:
       hitVx: 0, hitVy: 0, hitX: 0, hitY: 0,
@@ -122,20 +134,25 @@
     if (!b || b.phase !== 'flight' || b.swung) return;
     b.swung = true;
 
-    const dt = Math.abs((performance.now() - b.t0) - G.flightMs); // ms away from perfect contact
+    const dt = Math.abs((performance.now() - b.t0) - b.flightMs); // ms away from perfect contact
     const T = CONFIG.TIMING;
+    const w = b.delivery.window; // yorkers shrink the windows, short balls widen them
 
     let runs = 0, label = '', color = '#fff';
-    if      (dt <= T.PERFECT) { runs = 6; label = 'SIX!';  color = '#ffd93b'; }
-    else if (dt <= T.GREAT)   { runs = 4; label = 'FOUR!'; color = '#6fdb4e'; }
-    else if (dt <= T.GOOD)    { runs = 2; label = '+2';    color = '#5ec8ff'; }
-    else if (dt <= T.OK)      { runs = 1; label = '+1';    color = '#ffffff'; }
+    if      (dt <= T.PERFECT * w) { runs = 6; label = 'SIX!';  color = '#ffd93b'; }
+    else if (dt <= T.GREAT * w)   { runs = 4; label = 'FOUR!'; color = '#6fdb4e'; }
+    else if (dt <= T.GOOD * w)    { runs = 2; label = '+2';    color = '#5ec8ff'; }
+    else if (dt <= T.OK * w)      { runs = 1; label = '+1';    color = '#ffffff'; }
 
     if (runs === 0) return; // swung too early/late — ball continues to the stumps…
 
+    // A weak poke at a short ball can loop up to a fielder… CAUGHT!
+    if (runs === 1 && Math.random() < b.delivery.catchRisk) { wicketFalls('caught'); return; }
+
     // --- It's a hit! ---
-    if (b.golden) { runs *= 2; label = '✨ ' + label + ' x2'; }
     const boundary = runs >= 4;
+    if (boundary) runs += b.delivery.bonus;              // brave hits off fast balls pay extra
+    if (b.golden) { runs *= 2; label = '✨ ' + label + ' x2'; }
 
     if (boundary) {
       G.streak++;
@@ -168,13 +185,24 @@
     updateHUD();
   }
 
-  function wicketFalls() {
-    G.ball.phase = 'bowled';
+  function wicketFalls(how) {
+    const b = G.ball;
     G.wickets--;
     G.streak = 0;
     G.multiplier = 1;
-    G.stumpsBroken = performance.now();
-    popup('OUT!', '#ff5252', 46);
+    if (how === 'caught') {
+      // The ball loops gently up off the bat into a fielder's hands
+      const pos = ballPos(Math.min(1, (performance.now() - b.t0) / b.flightMs));
+      b.phase = 'hit';
+      b.tHit = performance.now();
+      b.hitX = pos.x; b.hitY = pos.y;
+      b.hitVx = 0.25; b.hitVy = -0.9;
+      popup('CAUGHT!', '#ff5252', 46);
+    } else {
+      b.phase = 'bowled';
+      G.stumpsBroken = performance.now();
+      popup('BOWLED!', '#ff5252', 46);
+    }
     Sound.wicket();
     buzz(120);
     G.shake = 10;
@@ -187,7 +215,7 @@
     G.balls++;
     setTimeout(() => {
       if (G.mode !== 'playing') return;
-      if (G.wickets <= 0) return endInnings();
+      if (G.wickets <= 0 || G.balls >= CONFIG.BALLS_PER_INNINGS) return endInnings();
       // New over? Speed up!
       if (G.balls % CONFIG.BALLS_PER_OVER === 0) {
         G.flightMs = Math.max(CONFIG.FLIGHT_MS_MIN, G.flightMs * CONFIG.SPEEDUP_PER_OVER);
@@ -225,10 +253,17 @@
     const isBest = G.score > save.best;
     if (isBest) save.best = G.score;
 
+    // Local leaderboard: keep the top scores on this device
+    const scores = [...save.scores, G.score].sort((a, b) => b - a).slice(0, CONFIG.LEADERBOARD_SIZE);
+    save.scores = scores;
+
     el('go-title').textContent = isBest ? '🏆 NEW BEST!' : 'Innings Over!';
     el('go-score').textContent = G.score;
     el('go-sub').textContent = `${G.balls} balls  •  Best: ${save.best}`;
     el('go-coins').textContent = `🪙 +${coins}`;
+    el('go-board').innerHTML = scores
+      .map((s, i) => `<div class="board-row${s === G.score ? ' me' : ''}">${['🥇','🥈','🥉','4.','5.'][i]} ${s}</div>`)
+      .join('');
     hide('hud');
     show('screen-gameover');
     if (coins > 0) Sound.coin();
@@ -435,12 +470,14 @@
       if (now - b.t0 >= CONFIG.RUNUP_MS) {
         b.phase = 'flight';
         b.t0 = now;
+        // Announce special deliveries as they leave the bowler's hand
+        if (b.delivery.name) popup(b.delivery.name, '#ffffff', 24);
       }
       return;
     }
 
     if (b.phase === 'flight') {
-      const p = (now - b.t0) / G.flightMs;
+      const p = (now - b.t0) / b.flightMs;
       if (p >= 1.12) { wicketFalls(); return; } // reached the stumps untouched
       const pos = ballPos(Math.min(1, p));
       const r = 5 + p * 9; // ball "grows" as it gets closer — fake 3D
@@ -537,9 +574,7 @@
   function updateHUD() {
     el('hud-score').textContent = G.score;
     el('hud-wickets').textContent = '🏏 '.repeat(G.wickets).trim() || '—';
-    const over = Math.floor(G.balls / CONFIG.BALLS_PER_OVER) + 1;
-    const ballInOver = (G.balls % CONFIG.BALLS_PER_OVER) + 1;
-    el('hud-over').textContent = `Over ${over}.${ballInOver}`;
+    el('hud-over').textContent = `Ball ${Math.min(G.balls + 1, CONFIG.BALLS_PER_INNINGS)}/${CONFIG.BALLS_PER_INNINGS}`;
     const streakEl = el('hud-streak');
     if (G.multiplier > 1) {
       streakEl.textContent = `🔥 x${G.multiplier}`;

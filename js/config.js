@@ -25,8 +25,10 @@ const CONFIG = {
   SPEEDUP_PER_OVER: 0.90, // each over, flight time is multiplied by this
 
   // ---------- Innings ----------
-  WICKETS: 3,            // misses allowed before the innings ends
+  BALLS_PER_INNINGS: 12, // the "12-ball challenge" — innings ends here
+  WICKETS: 3,            // …or when you lose this many wickets
   BALLS_PER_OVER: 6,
+  LEADERBOARD_SIZE: 5,   // how many top scores to remember
 
   // ---------- Fun stuff ----------
   GOLDEN_BALL_CHANCE: 0.14, // chance a ball is GOLDEN (double runs)
@@ -42,6 +44,20 @@ const CONFIG = {
   // ---------- Coins ----------
   COINS_PER_RUN: 1,      // coins earned per run scored
 };
+
+/* ---------- Delivery types (the AI bowler's bag of tricks) ----------
+   weight   : how often the bowler picks it (relative)
+   flight   : flight-time multiplier (lower = faster ball)
+   window   : timing-window multiplier (lower = harder to time)
+   bonus    : extra runs added to a boundary off this ball
+   catchRisk: chance a WEAK hit (1-run timing) is caught out       */
+const DELIVERIES = [
+  { id: 'normal', name: '',              weight: 40, flight: 1.00, window: 1.00, bonus: 0, catchRisk: 0   },
+  { id: 'fast',   name: '⚡ FAST BALL',  weight: 15, flight: 0.75, window: 1.00, bonus: 2, catchRisk: 0   },
+  { id: 'slower', name: '🐢 SLOWER BALL',weight: 15, flight: 1.28, window: 1.00, bonus: 0, catchRisk: 0   },
+  { id: 'yorker', name: '🎯 YORKER',     weight: 15, flight: 0.90, window: 0.70, bonus: 1, catchRisk: 0   },
+  { id: 'short',  name: '⬆️ SHORT BALL', weight: 15, flight: 1.12, window: 1.35, bonus: 0, catchRisk: 0.5 },
+];
 
 /* ---------- Bat skins (the shop) ----------
    Add your own! Just copy a line and change the values.

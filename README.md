@@ -24,14 +24,31 @@ That gives you a public URL you can send to anyone — kids can add it to their 
 home screen via Share → *Add to Home Screen* and it behaves like a native app,
 fullscreen and offline.
 
-## 🎮 How the game works
+## 🎮 How the game works — the 12-ball challenge
 
+- You get **12 balls and 3 wickets**. Smash the biggest score you can.
 - A bowler bowls at you; **tap anywhere** when the ball reaches your bat.
-- Timing decides the shot: perfect = **SIX**, great = **FOUR**, okay = 1–2 runs, miss = **wicket**.
-- You have 3 wickets. Every over the bowling gets faster.
+- Timing decides the shot: perfect = **SIX**, great = **FOUR**, okay = 1–2 runs, miss = **BOWLED**.
+- The AI bowler mixes up **five delivery types**, each with different consequences:
+  - ⚡ **Fast ball** — less time to react, but boundaries earn bonus runs
+  - 🐢 **Slower ball** — punishes swinging early
+  - 🎯 **Yorker** — deceptive: the timing window shrinks
+  - ⬆️ **Short ball** — easier to hit, but a weak poke can get you **CAUGHT**
+- Every over the bowling gets faster.
 - Boundary streaks light a 🔥 **multiplier** (up to x3). ✨ **Golden balls** are worth double.
 - Runs become 🪙 coins. Spend them in the **Bat Shop** on cosmetic bat skins.
-- Best score is saved on the device. **Challenge a friend** shares your score.
+- Your **top 5 scores** live on the results screen. **Challenge a friend** shares your score.
+
+## 🧭 Why web-first (and when Unity)
+
+This MVP is deliberately a web/PWA build, matching the "mobile web version first, then
+iOS/Android wrapper" plan: it is testable by real kids **today** with a link — no app store,
+no $124 in developer accounts, no installs — which is exactly what v0.1 must prove:
+*"Do kids voluntarily replay this after one match?"* If retention proves out, the paths up are:
+**Capacitor** (wrap this exact codebase as iOS/Android apps with IAP/ads) or a **Unity rebuild**
+(if the game evolves toward real-time 1v1/3v3 multiplayer, where Unity earns its weight).
+All game rules live in `js/config.js` (the ScriptableObject equivalent), so the design tuning
+transfers directly whichever path we take.
 
 ## 🗂 Project tour (for new game developers 👋)
 
