@@ -1,0 +1,241 @@
+/* ============================================================
+   Wicket Rush — styles
+   Bright, chunky, kid-friendly. Everything sized for thumbs.
+   ============================================================ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #39b3f4;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- Screens (overlays on top of the canvas) ---------- */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  background: rgba(20, 60, 100, 0.35);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 10;
+}
+
+h2 {
+  color: #fff;
+  font-size: 34px;
+  font-weight: 900;
+  text-shadow: 0 3px 0 rgba(0,0,0,.25);
+  letter-spacing: 1px;
+}
+
+/* ---------- Logo ---------- */
+.logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.95;
+  margin-bottom: 8px;
+  transform: rotate(-3deg);
+}
+.logo-top, .logo-bottom {
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  text-shadow: 0 4px 0 #1a7ab5, 0 8px 16px rgba(0,0,0,.3);
+}
+.logo-top { font-size: 52px; }
+.logo-bottom {
+  font-size: 64px;
+  color: #ffd93b;
+  text-shadow: 0 4px 0 #c99400, 0 8px 16px rgba(0,0,0,.3);
+}
+.logo-ball { font-size: 40px; margin-top: 10px; animation: bounce 1.2s infinite ease-in-out; }
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-14px); }
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  border: none;
+  border-radius: 999px;
+  font-weight: 900;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 5px 0 rgba(0,0,0,.25);
+  transition: transform .05s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+
+.btn-big {
+  font-size: 28px;
+  padding: 18px 56px;
+  background: linear-gradient(#6fdb4e, #3fae2a);
+}
+.btn-mid {
+  font-size: 19px;
+  padding: 14px 24px;
+  background: linear-gradient(#ffb830, #f28a00);
+}
+.btn-round {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  font-size: 24px;
+  background: linear-gradient(#5ec8ff, #2a92cf);
+}
+.btn-row { display: flex; gap: 14px; }
+
+/* ---------- Badges ---------- */
+.best-badge, .coin-badge {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  background: rgba(0,0,0,.25);
+  padding: 8px 20px;
+  border-radius: 999px;
+}
+.coin-badge { color: #ffd93b; }
+
+/* ---------- HUD ---------- */
+#hud {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 0; right: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 14px;
+  gap: 8px;
+}
+.hud-pill {
+  background: rgba(0, 40, 70, .55);
+  color: #fff;
+  font-weight: 900;
+  font-size: 18px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  min-width: 64px;
+  text-align: center;
+}
+#hud-score { font-size: 22px; color: #ffd93b; }
+#hud-streak {
+  margin: 10px auto 0;
+  width: fit-content;
+  background: linear-gradient(#ff7a3c, #e8420e);
+  color: #fff;
+  font-weight: 900;
+  font-size: 18px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  animation: pulse .5s infinite alternate;
+}
+@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+
+/* ---------- How to play ---------- */
+.howto-card {
+  background: rgba(255,255,255,.92);
+  color: #16496e;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 14px 18px;
+  border-radius: 16px;
+  width: min(420px, 92%);
+  text-align: center;
+}
+
+/* ---------- Shop ---------- */
+#shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(420px, 94%);
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255,255,255,.94);
+  border-radius: 16px;
+  padding: 12px 16px;
+}
+.shop-swatch {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.2);
+}
+.shop-name { flex: 1; font-weight: 800; color: #16496e; font-size: 18px; }
+.shop-buy {
+  border: none;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 15px;
+  padding: 10px 16px;
+  color: #fff;
+  background: linear-gradient(#6fdb4e, #3fae2a);
+  cursor: pointer;
+}
+.shop-buy[disabled] { background: #b9c4cc; }
+.shop-buy.equipped { background: linear-gradient(#5ec8ff, #2a92cf); }
+
+/* ---------- Game over ---------- */
+.go-score {
+  font-size: 84px;
+  font-weight: 900;
+  color: #ffd93b;
+  text-shadow: 0 5px 0 #c99400, 0 10px 20px rgba(0,0,0,.35);
+  line-height: 1;
+}
+.go-sub { color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+
+/* ---------- Tap hint ---------- */
+#tap-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 26%;
+  transform: translateX(-50%);
+  z-index: 6;
+  background: rgba(255,255,255,.95);
+  color: #16496e;
+  font-weight: 900;
+  font-size: 18px;
+  text-align: center;
+  padding: 12px 20px;
+  border-radius: 16px;
+  pointer-events: none;
+  animation: pulse .6s infinite alternate;
+}

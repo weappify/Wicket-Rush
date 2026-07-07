@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Wicket Rush</title>
+  <meta name="description" content="Wicket Rush — the fast, fun cricket batting game. Time your shot, smash sixes, chase your best score!" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#39b3f4" />
+  <link rel="icon" href="icons/icon-192.png" />
+
+  <!-- iOS home-screen install -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Wicket Rush" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- The game world is drawn here -->
+  <canvas id="game"></canvas>
+
+  <!-- ============ HUD (visible while batting) ============ -->
+  <div id="hud" class="hidden">
+    <div class="hud-row">
+      <div id="hud-score" class="hud-pill">0</div>
+      <div id="hud-wickets" class="hud-pill">🏏 🏏 🏏</div>
+      <div id="hud-over" class="hud-pill">Over 1.1</div>
+    </div>
+    <div id="hud-streak" class="hidden">🔥 x2</div>
+  </div>
+
+  <!-- ============ HOME SCREEN ============ -->
+  <div id="screen-home" class="screen">
+    <div class="logo">
+      <span class="logo-top">WICKET</span>
+      <span class="logo-bottom">RUSH</span>
+      <span class="logo-ball">🏏</span>
+    </div>
+    <div id="home-best" class="best-badge">Best: 0</div>
+    <button id="btn-play" class="btn btn-big">▶ PLAY</button>
+    <div class="btn-row">
+      <button id="btn-shop" class="btn btn-mid">🛍 Shop</button>
+      <button id="btn-howto" class="btn btn-mid">❓ How</button>
+    </div>
+    <div id="home-coins" class="coin-badge">🪙 0</div>
+    <button id="btn-mute" class="btn btn-round">🔊</button>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div id="screen-howto" class="screen hidden">
+    <h2>How to Play</h2>
+    <div class="howto-card">👀 Watch the bowler bowl the ball</div>
+    <div class="howto-card">👆 TAP anywhere when the ball reaches your bat</div>
+    <div class="howto-card">🎯 Perfect timing = SIX! Miss = wicket gone</div>
+    <div class="howto-card">🔥 Hit boundaries in a row for a score multiplier</div>
+    <div class="howto-card">✨ Golden balls are worth DOUBLE runs</div>
+    <button id="btn-howto-back" class="btn btn-big">Got it!</button>
+  </div>
+
+  <!-- ============ SHOP ============ -->
+  <div id="screen-shop" class="screen hidden">
+    <h2>Bat Shop</h2>
+    <div id="shop-coins" class="coin-badge">🪙 0</div>
+    <div id="shop-list"></div>
+    <button id="btn-shop-back" class="btn btn-big">Back</button>
+  </div>
+
+  <!-- ============ GAME OVER ============ -->
+  <div id="screen-gameover" class="screen hidden">
+    <h2 id="go-title">Innings Over!</h2>
+    <div id="go-score" class="go-score">0</div>
+    <div id="go-sub" class="go-sub"></div>
+    <div id="go-coins" class="coin-badge">🪙 +0</div>
+    <button id="btn-again" class="btn btn-big">▶ Bat Again</button>
+    <div class="btn-row">
+      <button id="btn-share" class="btn btn-mid">📣 Challenge a friend</button>
+      <button id="btn-home" class="btn btn-mid">🏠 Home</button>
+    </div>
+  </div>
+
+  <!-- Floating "TAP!" hint shown on the first ball -->
+  <div id="tap-hint" class="hidden">TAP when the ball<br/>reaches your bat!</div>
+
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/game.js"></script>
+  <script>
+    // Register the service worker so the game works offline / installs as an app
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+  </script>
+</body>
+</html>
