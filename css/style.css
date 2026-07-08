@@ -377,6 +377,40 @@ h2 {
   to   { transform: translate(-50%, 0); opacity: 1; }
 }
 
+/* ---------- Rotate-to-portrait overlay ----------
+   Wicket Rush is a portrait game. On a touch device held in landscape we
+   cover the screen with a friendly "turn me upright" nudge. Pure CSS: it
+   only appears on coarse-pointer (touch) devices, so a laptop/desktop in
+   landscape is never nagged. It auto-vanishes the instant you rotate. */
+#rotate-overlay {
+  display: none; /* shown by the media query below */
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+  background: linear-gradient(#2a92cf, #39b3f4);
+  color: #fff;
+}
+.rotate-phone {
+  font-size: 72px;
+  animation: rotate-hint 1.8s ease-in-out infinite;
+}
+@keyframes rotate-hint {
+  0%, 40%   { transform: rotate(-90deg); }
+  60%, 100% { transform: rotate(0deg); }
+}
+.rotate-title { font-size: 30px; font-weight: 900; text-shadow: 0 3px 0 rgba(0,0,0,.2); }
+.rotate-sub   { font-size: 18px; font-weight: 700; opacity: .95; }
+
+@media (orientation: landscape) and (pointer: coarse) {
+  #rotate-overlay { display: flex; }
+}
+
 /* ---------- End-of-over scorecard ---------- */
 #over-summary {
   position: fixed;
