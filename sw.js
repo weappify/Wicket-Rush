@@ -3,12 +3,13 @@
    (great for kids on iPads without Wi-Fi!).
    Bump VERSION whenever you change any game file. */
 
-const VERSION = 'wicket-rush-v5';
+const VERSION = 'wicket-rush-v6';
 const ASSETS = [
   '.',
   'index.html',
   'css/style.css',
   'js/config.js',
+  'js/analytics.js',
   'js/progression.js',
   'js/audio.js',
   'js/game.js',

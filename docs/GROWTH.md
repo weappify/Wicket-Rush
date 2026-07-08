@@ -52,6 +52,25 @@ below is a growth feature, not a marketing task.
 3. **Shares per player** (K-factor — is the challenge button being pressed?)
 4. Only after those: revenue per player
 
+### Reading the built-in 📊 Stats screen (during your friends test)
+
+The game ships with a **private, on-device** stats panel (tap 📊 on the home screen).
+Nothing is ever sent anywhere — it's just counters in that phone's storage, so it's
+COPPA-safe and needs no backend. On each kid's device after a play session, look at:
+
+- **“Bat Again” taps (replays)** and **Play sessions** — the clearest "do they replay
+  voluntarily?" signal. High replays per session = the core loop is fun.
+- **Days played** / **Days since first game** — hand them the device again a few days
+  later; if "Days played" climbed without you prompting, you have real retention.
+- **Times shared / challenged** — is the social loop firing on its own?
+- **Daily Challenge games** vs **Free-play games** and **Best daily streak** — is the
+  daily habit taking hold?
+
+Use **📋 Copy** to grab a JSON snapshot you can paste into a note per tester, and
+**🗑 Reset** to zero a device before handing it to the next kid for a clean read.
+When you're ready for real cross-device numbers later, swap this for a privacy-first,
+kid-safe analytics service (e.g. self-hosted Plausible or aggregate-only counts).
+
 ## The 14-year-old co-founder angle 🚀
 
 Your son is the target demographic — that's a superpower:

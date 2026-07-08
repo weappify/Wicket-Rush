@@ -72,6 +72,7 @@ transfers directly whichever path we take.
 |---|---|---|
 | `js/config.js` | **Every game number** — speeds, timing, prices, skins, characters, missions, trophy road | ⭐ Start here! |
 | `css/style.css` | Colors, buttons, menus | ⭐⭐ |
+| `js/analytics.js` | Private on-device play counters (the 📊 Stats screen) — no network, ever | ⭐⭐ |
 | `js/audio.js` | All sound effects (synthesized in code!) | ⭐⭐ |
 | `js/progression.js` | Daily challenge, streak, missions, trophies, characters (the "come back" loop) | ⭐⭐⭐ |
 | `js/game.js` | The game itself — drawing, physics, scoring | ⭐⭐⭐ |

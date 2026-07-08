@@ -59,6 +59,19 @@
     </div>
     <div id="home-coins" class="coin-badge">🪙 0</div>
     <button id="btn-mute" class="btn btn-round">🔊</button>
+    <button id="btn-stats" class="btn btn-round btn-round-2">📊</button>
+  </div>
+
+  <!-- ============ STATS (parent / developer view — all on-device) ============ -->
+  <div id="screen-stats" class="screen hidden">
+    <h2>📊 Stats</h2>
+    <div class="sub-note">Private &amp; on-device only — nothing is ever sent anywhere.</div>
+    <div id="stats-list"></div>
+    <div class="btn-row">
+      <button id="btn-stats-copy" class="btn btn-mid">📋 Copy</button>
+      <button id="btn-stats-reset" class="btn btn-mid">🗑 Reset</button>
+    </div>
+    <button id="btn-stats-back" class="btn btn-big">Back</button>
   </div>
 
   <!-- ============ MISSIONS ============ -->
@@ -140,6 +153,7 @@
   <div id="toast" class="hidden"></div>
 
   <script src="js/config.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/progression.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/game.js"></script>

@@ -111,6 +111,7 @@ h2 {
   font-size: 24px;
   background: linear-gradient(#5ec8ff, #2a92cf);
 }
+.btn-round-2 { top: calc(max(16px, env(safe-area-inset-top)) + 62px); }
 .btn-row { display: flex; gap: 14px; }
 
 /* ---------- Badges ---------- */
@@ -316,6 +317,23 @@ h2 {
 }
 .char-btn.equipped { background: linear-gradient(#5ec8ff, #2a92cf); }
 .char-btn.locked { background: #b9c4cc; }
+
+/* ---------- Stats ---------- */
+#stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(440px, 94%);
+  max-height: 56vh;
+  overflow-y: auto;
+}
+.stat-group { color: #ffd93b; font-weight: 900; font-size: 14px; margin: 8px 0 2px; text-transform: uppercase; letter-spacing: .5px; }
+.stat-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  background: rgba(255,255,255,.92); border-radius: 12px; padding: 10px 16px;
+}
+.stat-label { color: #16496e; font-weight: 700; font-size: 15px; }
+.stat-value { color: #f28a00; font-weight: 900; font-size: 18px; }
 
 /* ---------- Trophy road ---------- */
 .tr-item {

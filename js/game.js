@@ -263,6 +263,7 @@
       runs += gapBonus;
       popup(`IN THE GAP! +${gapBonus}`, '#6fdb4e', 24, VH * 0.47);
       bumpMission('gaps', 1);
+      Stats.bump('gaps');
     }
 
     const timingRuns = runs;                 // the shot the timing earned, before golden
@@ -283,10 +284,10 @@
     if (G.multiplier > 1) label += ` x${G.multiplier}`;
 
     // Mission tallies (based on the shot the timing produced)
-    if (timingRuns >= 6) bumpMission('sixes', 1);
+    if (timingRuns >= 6) { bumpMission('sixes', 1); Stats.bump('sixes'); }
     if (boundary) {
       bumpMission('boundaries', 1);
-      if (timingRuns === 4) bumpMission('fours', 1);
+      if (timingRuns === 4) { bumpMission('fours', 1); Stats.bump('fours'); }
     }
 
     popup(label, color, runs >= 6 ? 44 : 34);
@@ -371,6 +372,10 @@
   function startInnings(daily) {
     G.mode = 'playing';
     G.daily = !!daily;
+    // Private, on-device analytics (see js/analytics.js — nothing leaves the phone)
+    Stats.touch();
+    Stats.bump('games');
+    Stats.bump(daily ? 'gamesDaily' : 'gamesFree');
     // Daily Challenge uses a seeded random source so every player worldwide
     // faces the exact same deliveries and field today — a fair race.
     G.rng = daily ? Progress.makeRng(Progress.dailyInfo().seed) : Math.random;
@@ -402,11 +407,14 @@
     // Career trophies (never lost) + Trophy Road unlocks
     let trophyGain = G.score * CONFIG.TROPHIES_PER_RUN;
     let dailyLine = '';
+    let dailyStreak = 0;
     if (G.daily) {
       const d = Progress.recordDaily(G.score);
       trophyGain += d.bonus;
+      dailyStreak = d.streak;
       dailyLine = d.firstToday ? `  •  🔥 ${d.streak}-day streak!` : '';
     }
+    Stats.recordScore(G.score, dailyStreak);
     const unlocks = Progress.addTrophies(trophyGain);
 
     // Post-game missions
@@ -880,7 +888,7 @@
     list.querySelectorAll('.mission-claim[data-id]').forEach((b) => {
       b.addEventListener('click', () => {
         const reward = Progress.claimMission(b.dataset.id);
-        if (reward) { toast(`+${reward} 🪙 claimed!`); buzz(30); }
+        if (reward) { toast(`+${reward} 🪙 claimed!`); buzz(30); Stats.bump('missionsClaimed'); }
         renderMissions();
       });
     });
@@ -914,6 +922,44 @@
     list.querySelectorAll('.char-btn[data-id]').forEach((b) => {
       b.addEventListener('click', () => { Progress.setCharacter(b.dataset.id); Sound.tap(); renderChars(); });
     });
+  }
+
+  // ---------- Stats screen (parent / developer view) ----------
+  function renderStats() {
+    const s = Stats.summary();
+    const groups = [
+      ['Coming back?', [
+        ['Days played', s.daysActive],
+        ['Days since first game', s.daysSinceFirst],
+        ['Play sessions', s.sessions],
+        ['“Bat Again” taps (replays)', s.replays],
+        ['Times shared / challenged', s.shares],
+      ]],
+      ['How much they play', [
+        ['Total games', s.games],
+        ['Free-play games', s.gamesFree],
+        ['Daily Challenge games', s.gamesDaily],
+        ['Best daily streak', s.dailyStreakBest],
+      ]],
+      ['Skill & fun', [
+        ['Best score', s.best],
+        ['Average score', s.avgScore],
+        ['Total runs', s.totalRuns],
+        ['Sixes hit', s.sixes],
+        ['Fours hit', s.fours],
+        ['Gaps found', s.gaps],
+      ]],
+      ['Progression', [
+        ['Missions claimed', s.missionsClaimed],
+        ['Bat skins bought', s.skinsBought],
+      ]],
+    ];
+    el('stats-list').innerHTML = groups.map(([title, rows]) =>
+      `<div class="stat-group">${title}</div>` +
+      rows.map(([label, val]) =>
+        `<div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value">${val}</span></div>`
+      ).join('')
+    ).join('');
   }
 
   // ---------- Trophy Road screen ----------
@@ -969,6 +1015,7 @@
           save.skin = s.id;
           Sound.coin();
           buzz(30);
+          Stats.bump('skinsBought');
         }
         renderShop();
       });
@@ -981,7 +1028,7 @@
   // ---------- Buttons ----------
   el('btn-play').addEventListener('click', () => { Sound.tap(); startInnings(false); });
   el('btn-daily').addEventListener('click', () => { Sound.tap(); startInnings(true); });
-  el('btn-again').addEventListener('click', () => { Sound.tap(); startInnings(G.daily); });
+  el('btn-again').addEventListener('click', () => { Sound.tap(); Stats.bump('replays'); startInnings(G.daily); });
   el('btn-home').addEventListener('click', () => {
     Sound.tap(); G.mode = 'home';
     hide('screen-gameover'); show('screen-home'); updateHome();
@@ -999,6 +1046,15 @@
   el('btn-chars-back').addEventListener('click', () => goto('screen-chars', 'screen-home', updateHome));
   el('btn-trophies').addEventListener('click', () => goto('screen-home', 'screen-trophies', renderTrophyRoad));
   el('btn-trophies-back').addEventListener('click', () => goto('screen-trophies', 'screen-home', updateHome));
+  el('btn-stats').addEventListener('click', () => goto('screen-home', 'screen-stats', renderStats));
+  el('btn-stats-back').addEventListener('click', () => goto('screen-stats', 'screen-home', updateHome));
+  el('btn-stats-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(Stats.exportText()); toast('📋 Stats copied!'); }
+    catch (e) { toast('Copy not available'); }
+  });
+  el('btn-stats-reset').addEventListener('click', () => {
+    if (confirm('Reset all local stats? This cannot be undone.')) { Stats.reset(); renderStats(); toast('Stats reset'); }
+  });
   el('btn-shop').addEventListener('click', () => {
     Sound.tap(); renderShop();
     hide('screen-home'); show('screen-shop');
@@ -1025,6 +1081,7 @@
       ? `🏏 I scored ${G.score} in today's Wicket Rush Daily Challenge! Same 12 balls for everyone — beat me!`
       : `🏏 I smashed ${G.score} runs in Wicket Rush! Think you can beat me?`;
     const url = location.href;
+    Stats.bump('shares');
     if (navigator.share) {
       try { await navigator.share({ title: 'Wicket Rush', text, url }); } catch (e) { /* user cancelled */ }
     } else {
