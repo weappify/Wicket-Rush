@@ -34,6 +34,8 @@ fullscreen and offline.
   sails over everyone. A plain tap is always safe (no bonus, no penalty).
 - An **over summary** scorecard shows your runs after each over — then the bowling speeds up.
 - Timing decides the shot: perfect = **SIX**, great = **FOUR**, okay = 1–2 runs, miss = **BOWLED**.
+- It's played on a proper **oval ground with a boundary rope** — hit a SIX and the camera
+  follows the ball up and over the rope, with fireworks from the crowd. 🎆
 - The AI bowler mixes up **five delivery types**, each with different consequences:
   - ⚡ **Fast ball** — less time to react, but boundaries earn bonus runs
   - 🐢 **Slower ball** — punishes swinging early

@@ -53,6 +53,14 @@
     L.stumpsY  = VH * 0.80 + 14;
     L.pitchTop = VH * 0.13;
     L.cx = VW / 2;
+
+    // The oval cricket ground (a big ellipse with a boundary rope).
+    // The batter sits near the bottom edge; the far rope is well above the
+    // screen — you only see it when the camera pans up to follow a SIX.
+    L.groundCY = VH * 0.325;             // ellipse centre (world y)
+    L.groundRX = VW * 0.60;              // half-width
+    L.groundRY = VH * 0.95;              // half-height
+    L.ropeTopY = L.groundCY - L.groundRY; // world y of the top boundary rope
   }
 
   // ---------- Saved progress ----------
@@ -97,6 +105,7 @@
     daily: false,        // is this the Daily Challenge?
     rng: Math.random,    // random source — seeded in daily mode so it's fair for all
     counters: {},        // per-game tallies for missions (sixes, gaps, …)
+    cam: { x: 0, y: 0 }, // camera pan — follows the ball up on a SIX
   };
 
   // ---------- The ball state machine ----------
@@ -164,6 +173,40 @@
     return { x, y };
   }
 
+  // The ball's current on-field position, whatever phase it's in.
+  // Used by both the renderer and the camera so they always agree.
+  function currentBallXY(now) {
+    const b = G.ball;
+    if (!b) return null;
+    if (b.phase === 'flight') {
+      const p = Math.min(1, (now - b.t0) / b.flightMs);
+      return ballPos(p);
+    }
+    if (b.phase === 'hit') {
+      const g = b.grav != null ? b.grav : 0.12;
+      const t = (now - b.tHit) / 16.7;
+      return { x: b.hitX + b.hitVx * t * 9, y: b.hitY + b.hitVy * t * 9 + g * t * t };
+    }
+    return null;
+  }
+
+  // Launch the ball on a towering SIX so it clears the boundary rope, and
+  // tell the camera to follow it up.
+  function launchSix() {
+    const b = G.ball;
+    const p = currentBallXY(performance.now()) || { x: L.cx - 20, y: L.batterY - 16 };
+    b.hitX = p.x;
+    b.hitY = Math.min(p.y, L.batterY - 10);
+    b.tHit = performance.now();
+    b.isSix = true;
+    b.follow = true;
+    b.landed = false;
+    b.grav = 0.05; // low gravity → a long, floaty arc over the rope
+    const dir = b.hitVx !== 0 ? Math.sign(b.hitVx) : (G.rng() < 0.5 ? -1 : 1);
+    b.hitVx = dir * (0.25 + G.rng() * 0.5);
+    b.hitVy = -2.4; // strong upward launch
+  }
+
   // ---------- Swinging the bat ----------
   // Returns true when the ball was actually hit (so a flick can steer it).
   function swing() {
@@ -198,6 +241,7 @@
     const power = runs >= 4 ? 1.6 : 0.9;
     b.hitVx = Math.cos(ang) * power;
     b.hitVy = Math.sin(ang) * power;
+    b.grav = 0.12; b.isSix = false; b.follow = false; b.landed = false;
 
     b.pending = { runs, label, color };
     b.finalizeTimer = setTimeout(() => finalizeShot('neutral'), CONFIG.SWIPE.WINDOW_MS + 30);
@@ -247,6 +291,11 @@
     let { runs, label, color } = b.pending;
     b.pending = null;
 
+    // Capture what the TIMING earned, before gap bonuses can inflate it
+    // (so a four-into-the-gap of 4+2=6 isn't mistaken for a real six).
+    const timingSix = runs >= 6;
+    const timingFour = runs === 4;
+
     if (outcome === 'fielded') {
       if (runs >= 6) {
         popup('OVER THE TOP! 🚀', '#ffd93b', 24, VH * 0.5); // a SIX clears everyone
@@ -266,7 +315,6 @@
       Stats.bump('gaps');
     }
 
-    const timingRuns = runs;                 // the shot the timing earned, before golden
     const boundary = runs >= 4;
     if (boundary) runs += b.delivery.bonus;              // brave hits off fast balls pay extra
     if (b.golden) { runs *= 2; label = '✨ ' + label + ' x2'; bumpMission('golden', 1); }
@@ -284,11 +332,14 @@
     if (G.multiplier > 1) label += ` x${G.multiplier}`;
 
     // Mission tallies (based on the shot the timing produced)
-    if (timingRuns >= 6) { bumpMission('sixes', 1); Stats.bump('sixes'); }
+    if (timingSix) { bumpMission('sixes', 1); Stats.bump('sixes'); }
     if (boundary) {
       bumpMission('boundaries', 1);
-      if (timingRuns === 4) { bumpMission('fours', 1); Stats.bump('fours'); }
+      if (timingFour) { bumpMission('fours', 1); Stats.bump('fours'); }
     }
+
+    // A real SIX sails over the boundary — send it flying and follow it up
+    if (timingSix) launchSix();
 
     popup(label, color, runs >= 6 ? 44 : 34);
     if (boundary) { Sound.cheer(); G.shake = runs >= 6 ? 14 : 8; buzz(60); }
@@ -388,6 +439,7 @@
     G.overWickets = 0;
     G.swipeStart = null;
     G.flightMs = CONFIG.FLIGHT_MS_START;
+    G.cam.x = 0; G.cam.y = 0;
     G.particles = [];
     G.popups = [];
     show('hud');
@@ -494,13 +546,32 @@
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
 
     // Screen shake
+    let sx = 0, sy = 0;
     if (G.shake > 0.5) {
-      ctx.translate((Math.random() - 0.5) * G.shake, (Math.random() - 0.5) * G.shake);
+      sx = (Math.random() - 0.5) * G.shake;
+      sy = (Math.random() - 0.5) * G.shake;
       G.shake *= 0.85;
     }
 
-    drawStadium();
+    // Camera: normally centred on the batter, but on a SIX it pans up to
+    // follow the ball as it flies out and over the boundary rope.
+    let tX = 0, tY = 0;
+    const b = G.ball;
+    if (b && b.phase === 'hit' && b.follow) {
+      const p = currentBallXY(now);
+      if (p) {
+        tY = clamp(VH * 0.42 - p.y, 0, VH * 0.9);
+        tX = clamp(L.cx - p.x, -VW * 0.18, VW * 0.18);
+      }
+    }
+    G.cam.x += (tX - G.cam.x) * 0.11;
+    G.cam.y += (tY - G.cam.y) * 0.11;
 
+    // ---- world (moves with the camera) ----
+    ctx.save();
+    ctx.translate(sx + G.cam.x, sy + G.cam.y);
+
+    drawStadium();
     if (G.mode === 'playing' || G.mode === 'over') {
       if (G.mode === 'playing') drawFielders();
       drawStumps(now);
@@ -508,62 +579,86 @@
       drawBowler(now);
       if (G.mode === 'playing') drawBall(now);
     } else {
-      // Home screen: idle batter waiting for the game to start
       drawStumps(now);
       drawBatter(now);
       drawBowler(now);
     }
-
     drawParticles();
+    ctx.restore();
+
+    // ---- screen-space overlays (fixed, ignore the camera) ----
     drawPopups();
   }
 
-  function drawStadium() {
-    // Sky
-    const sky = ctx.createLinearGradient(0, 0, 0, VH * 0.35);
-    sky.addColorStop(0, '#39b3f4');
-    sky.addColorStop(1, '#7dd3ff');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, VW, VH * 0.35);
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function ellipsePath(cx, cy, rx, ry) { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 7); }
 
-    // Crowd stand
-    ctx.fillStyle = '#2b6ea5';
-    ctx.fillRect(0, VH * 0.06, VW, VH * 0.06);
-    ctx.fillStyle = '#1e5c8f';
-    ctx.fillRect(0, VH * 0.09, VW, VH * 0.03);
-    // Crowd dots
-    for (let i = 0; i < 40; i++) {
-      ctx.fillStyle = ['#ffd93b', '#ff7a3c', '#6fdb4e', '#ff5252', '#fff'][i % 5];
+  function drawStadium() {
+    const cx = L.cx, cy = L.groundCY, rx = L.groundRX, ry = L.groundRY;
+
+    // Backdrop: sky above the far boundary, grass surround everywhere below,
+    // so the bottom corners of the screen are always green (never sky-blue).
+    ctx.fillStyle = '#79cff2';
+    ctx.fillRect(-VW, L.ropeTopY - VH * 1.2, VW * 3, VH * 3.4);
+    ctx.fillStyle = '#2f7d3a';
+    ctx.fillRect(-VW, L.ropeTopY + 6, VW * 3, VH * 3.4);
+
+    // Crowd stand: a thick ring outside the boundary, dotted with fans
+    ctx.lineWidth = 40;
+    ctx.strokeStyle = '#2b6ea5';
+    ellipsePath(cx, cy, rx + 30, ry + 30); ctx.stroke();
+    const palette = ['#ffd93b', '#ff7a3c', '#6fdb4e', '#ff5252', '#ffffff', '#5ec8ff'];
+    for (let i = 0; i < 120; i++) {
+      const a = (i / 120) * Math.PI * 2;
+      const rr = i % 2 ? 34 : 46;
+      ctx.fillStyle = palette[i % palette.length];
       ctx.beginPath();
-      ctx.arc((i * 37 + 15) % VW, VH * 0.065 + (i * 13 % 3) * VH * 0.015 + 4, 3.5, 0, 7);
+      ctx.arc(cx + (rx + rr) * Math.cos(a), cy + (ry + rr) * Math.sin(a), 3.4, 0, 7);
       ctx.fill();
     }
 
-    // Grass
-    const grass = ctx.createLinearGradient(0, VH * 0.12, 0, VH);
-    grass.addColorStop(0, '#4caf50');
+    // Advertising boards just outside the rope
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#eef2f5';
+    ellipsePath(cx, cy, rx + 10, ry + 10); ctx.stroke();
+
+    // Outfield grass (clipped to the oval) with mown stripes
+    ctx.save();
+    ellipsePath(cx, cy, rx, ry); ctx.clip();
+    const grass = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
+    grass.addColorStop(0, '#3f9e4a');
     grass.addColorStop(1, '#2e8b3a');
     ctx.fillStyle = grass;
-    ctx.fillRect(0, VH * 0.12, VW, VH);
-    // Mowing stripes
+    ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    for (let i = 0; i < 6; i++) ctx.fillRect(0, VH * 0.12 + i * VH * 0.16, VW, VH * 0.08);
+    const band = (ry * 2) / 11;
+    for (let k = 0; k < 11; k += 2) ctx.fillRect(cx - rx, cy - ry + k * band, rx * 2, band);
+    // 30-yard inner circle
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 3;
+    ellipsePath(cx, L.batterY - VH * 0.16, rx * 0.52, ry * 0.30); ctx.stroke();
+    ctx.restore();
 
-    // Pitch (the brown strip down the middle)
+    // Boundary rope
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#ffffff';
+    ellipsePath(cx, cy, rx, ry); ctx.stroke();
+
+    // Pitch (a contained strip in the middle of the ground)
     ctx.fillStyle = '#d9b47c';
-    const pw = 120;
     ctx.beginPath();
-    ctx.moveTo(L.cx - pw * 0.28, L.pitchTop);
-    ctx.lineTo(L.cx + pw * 0.28, L.pitchTop);
-    ctx.lineTo(L.cx + pw * 0.62, VH);
-    ctx.lineTo(L.cx - pw * 0.62, VH);
+    ctx.moveTo(cx - 22, L.bowlerY - 18);
+    ctx.lineTo(cx + 22, L.bowlerY - 18);
+    ctx.lineTo(cx + 36, L.batterY + 42);
+    ctx.lineTo(cx - 36, L.batterY + 42);
+    ctx.closePath();
     ctx.fill();
-    // Crease lines
+    // Creases
     ctx.strokeStyle = 'rgba(255,255,255,.8)';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(L.cx - 55, L.batterY + 26);
-    ctx.lineTo(L.cx + 55, L.batterY + 26);
+    ctx.moveTo(cx - 46, L.batterY + 26); ctx.lineTo(cx + 46, L.batterY + 26);
+    ctx.moveTo(cx - 30, L.bowlerY);       ctx.lineTo(cx + 30, L.bowlerY);
     ctx.stroke();
   }
 
@@ -728,11 +823,27 @@
     }
 
     if (b.phase === 'hit') {
+      const g = b.grav != null ? b.grav : 0.12;
       const t = (now - b.tHit) / 16.7; // frames since contact
       const x = b.hitX + b.hitVx * t * 9;
-      const y = b.hitY + b.hitVy * t * 9 + t * t * 0.12; // a touch of gravity
-      const r = Math.max(2, 12 - t * 0.35);              // shrinks as it flies away
-      if (y > -40 && x > -40 && x < VW + 40) {
+      const y = b.hitY + b.hitVy * t * 9 + g * t * t;
+
+      // SIX: leave a trail, and cheer the crowd when it clears the rope
+      if (b.isSix) {
+        if (t < 90 && Math.random() < 0.7) {
+          G.particles.push({ x, y, vx: 0, vy: 0.2, life: 0.5, color: b.golden ? '#ffd93b' : '#ff5252' });
+        }
+        if (!b.landed && y < L.ropeTopY + 40) {
+          b.landed = true;
+          burst(x, y, 30, '#ffd93b'); // fireworks over the boundary!
+          Sound.cheer();
+          buzz(40);
+        }
+      }
+
+      const r = Math.max(2, (b.isSix ? 13 : 12) - t * (b.isSix ? 0.10 : 0.35));
+      // keep drawing until it sails well past the rope / off the top
+      if (y > L.ropeTopY - 140 && x > -80 && x < VW + 80) {
         ctx.fillStyle = b.golden ? '#ffd93b' : '#e8382a';
         ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
       }
