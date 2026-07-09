@@ -94,6 +94,7 @@ of `js/config.js` (`MISSION_POOL`, `CHARACTERS`, `TROPHY_ROAD`) — add a line a
 
 - [docs/MONETIZATION.md](docs/MONETIZATION.md) — how a free game like this makes money (the Brawl Stars playbook, kid-safe version)
 - [docs/GROWTH.md](docs/GROWTH.md) — how to get downloads and make it spread among kids
+- [docs/BACKEND.md](docs/BACKEND.md) — you **don't** need a server now; this is the ready-to-go Firebase plan for the day you want a cross-device leaderboard or cloud save
 
 ## Tech
 
