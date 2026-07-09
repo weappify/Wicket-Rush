@@ -48,18 +48,26 @@
   // Handy layout anchors (recomputed from VH each frame so rotation works)
   const L = {};
   function layout() {
-    L.bowlerY  = VH * 0.16;              // where the ball is released
-    L.batterY  = VH * 0.80;              // where the bat meets the ball
-    L.stumpsY  = VH * 0.80 + 14;
-    L.pitchTop = VH * 0.13;
+    // Real cricket: the 22-yard pitch sits INSIDE the 30-yard circle, and
+    // that sits inside a big outfield ringed by the boundary. We keep the
+    // batter near the bottom (comfy for thumbs) and make the pitch a short
+    // central strip so its length looks right against the inner circle.
+    L.batterY  = VH * 0.80;              // where the bat meets the ball (near stumps)
+    L.bowlerY  = VH * 0.42;              // far stumps / where the ball is released
+    L.stumpsY  = L.batterY + 14;
     L.cx = VW / 2;
 
-    // The oval cricket ground (a big ellipse with a boundary rope).
-    // The batter sits near the bottom edge; the far rope is well above the
+    // 30-yard circle: centred on the middle of the pitch, comfortably
+    // containing it (pitch ≈ 0.38·VH long; circle ≈ 1.0·VH tall → ~37%, real).
+    L.circleCY = (L.bowlerY + L.batterY) / 2;
+    L.circleRX = VW * 0.46;
+    L.circleRY = VH * 0.50;
+
+    // The oval ground with its boundary rope. The far rope is well above the
     // screen — you only see it when the camera pans up to follow a SIX.
-    L.groundCY = VH * 0.325;             // ellipse centre (world y)
-    L.groundRX = VW * 0.60;              // half-width
-    L.groundRY = VH * 0.95;              // half-height
+    L.groundCY = VH * 0.30;
+    L.groundRX = VW * 0.66;
+    L.groundRY = VH * 1.02;
     L.ropeTopY = L.groundCY - L.groundRY; // world y of the top boundary rope
   }
 
@@ -152,8 +160,12 @@
     G.ball = {
       phase: 'runup',
       t0: performance.now(),
-      releaseX: L.cx + (G.rng() * 60 - 30),          // bowler varies position
-      curve: (G.rng() * 2 - 1) * CONFIG.SWING_CURVE_MAX, // sideways swing
+      releaseX: L.cx + (G.rng() * 40 - 20),          // bowler varies position
+      swing: (G.rng() * 2 - 1) * CONFIG.SWING_CURVE_MAX, // in-air movement before the bounce
+      // Turn after pitching: spinners turn a fixed way (off vs leg), seamers
+      // nibble a small random direction off the seam.
+      turn: delivery.spin ? delivery.turn : delivery.turn * (G.rng() < 0.5 ? 1 : -1),
+      bounced: false,
       golden,
       delivery,
       flightMs: G.flightMs * delivery.flight,  // this ball's actual speed
@@ -166,11 +178,31 @@
   }
 
   function ballPos(p) {
-    // Where is the ball when it is p (0→1) of the way down the pitch?
+    // The ball's position along the pitch (p: 0 at the bowler → 1 at the bat).
+    // Sideways = in-air swing before the pitch, then TURN off the seam/spin
+    // after it. Returns the on-pitch (ground) position.
     const b = G.ball;
-    const x = b.releaseX + (L.cx - b.releaseX) * p + b.curve * Math.sin(p * Math.PI);
-    const y = L.bowlerY + (L.batterY - L.bowlerY) * (p * p * 0.4 + p * 0.6); // slight ease-in, like a real delivery
+    const Lp = b.delivery.length != null ? b.delivery.length : 0.55;
+    let x = b.releaseX + (L.cx - b.releaseX) * p;
+    x += b.swing * Math.sin(Math.min(p, Lp) / Lp * (Math.PI / 2)); // swing eases in, "sets" at the bounce
+    if (p > Lp) { const u = (p - Lp) / (1 - Lp); x += b.turn * u * u; } // turn grows after pitching
+    const y = L.bowlerY + (L.batterY - L.bowlerY) * (p * p * 0.35 + p * 0.65);
     return { x, y };
+  }
+
+  // Height of the ball above the pitch (pixels) — creates the visible bounce.
+  // Falls from the bowler's hand to 0 at the pitching point, hops up, then
+  // settles to bat height. Short balls hop high; yorkers stay low.
+  function ballHeight(p) {
+    const d = G.ball.delivery;
+    const Lp = d.length != null ? d.length : 0.55;
+    const Hrelease = 34, Hbat = 9, Hhop = d.bounce != null ? d.bounce : 16;
+    if (p <= Lp) {
+      const u = p / Lp;
+      return Hrelease * (1 - u * u);           // arc down to the pitch
+    }
+    const u = (p - Lp) / (1 - Lp);
+    return Hhop * Math.sin(Math.PI * u) * (1 - u) + Hbat * u; // hop, then to the bat
   }
 
   // The ball's current on-field position, whatever phase it's in.
@@ -233,10 +265,11 @@
 
     // --- Contact! Launch the ball, but hold the score until we know
     // where the shot was placed (flick) and whether a fielder cuts it off.
-    const pos = ballPos(Math.min(1, (performance.now() - b.t0) / b.flightMs));
+    const cp = Math.min(1, (performance.now() - b.t0) / b.flightMs);
+    const pos = ballPos(cp);
     b.phase = 'hit';
     b.tHit = performance.now();
-    b.hitX = pos.x; b.hitY = pos.y;
+    b.hitX = pos.x; b.hitY = pos.y - ballHeight(cp);
     const ang = -Math.PI / 2 + (G.rng() * 0.9 - 0.45);
     const power = runs >= 4 ? 1.6 : 0.9;
     b.hitVx = Math.cos(ang) * power;
@@ -633,10 +666,10 @@
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
     const band = (ry * 2) / 11;
     for (let k = 0; k < 11; k += 2) ctx.fillRect(cx - rx, cy - ry + k * band, rx * 2, band);
-    // 30-yard inner circle
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    // 30-yard inner circle (contains the pitch, as in real cricket)
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)';
     ctx.lineWidth = 3;
-    ellipsePath(cx, L.batterY - VH * 0.16, rx * 0.52, ry * 0.30); ctx.stroke();
+    ellipsePath(L.cx, L.circleCY, L.circleRX, L.circleRY); ctx.stroke();
     ctx.restore();
 
     // Boundary rope
@@ -660,6 +693,10 @@
     ctx.moveTo(cx - 46, L.batterY + 26); ctx.lineTo(cx + 46, L.batterY + 26);
     ctx.moveTo(cx - 30, L.bowlerY);       ctx.lineTo(cx + 30, L.bowlerY);
     ctx.stroke();
+
+    // Far stumps at the bowler's end (small, for depth)
+    ctx.fillStyle = '#ffe9b0';
+    for (let i = -1; i <= 1; i++) ctx.fillRect(cx + i * 6 - 1.5, L.bowlerY - 11, 3, 12);
   }
 
   function drawStumps(now) {
@@ -798,27 +835,39 @@
     if (b.phase === 'flight') {
       const p = (now - b.t0) / b.flightMs;
       if (p >= 1.12) { wicketFalls(); return; } // reached the stumps untouched
-      const pos = ballPos(Math.min(1, p));
-      const r = 5 + p * 9; // ball "grows" as it gets closer — fake 3D
+      const pp = Math.min(1, p);
+      const pos = ballPos(pp);
+      const h = ballHeight(pp);          // height above the pitch
+      const r = 5 + pp * 9;              // ball "grows" as it gets closer — fake 3D
+      const by = pos.y - h;              // the ball is drawn lifted off its shadow
 
-      // Shadow on the pitch
-      ctx.fillStyle = 'rgba(0,0,0,.18)';
+      // The moment it pitches: kick up a little puff of dust
+      if (!b.bounced && pp >= (b.delivery.length != null ? b.delivery.length : 0.55)) {
+        b.bounced = true;
+        for (let i = 0; i < 7; i++) {
+          const a = -Math.PI + Math.random() * Math.PI;
+          G.particles.push({ x: pos.x, y: pos.y, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.2, life: 0.5, color: '#cdb079' });
+        }
+      }
+
+      // Shadow stays on the pitch; it shrinks & fades as the ball rises (depth cue)
+      ctx.fillStyle = `rgba(0,0,0,${0.20 - h * 0.003})`;
       ctx.beginPath();
-      ctx.ellipse(pos.x, pos.y + r + 4, r * 0.9, r * 0.35, 0, 0, 7);
+      ctx.ellipse(pos.x, pos.y + r * 0.5, r * 0.85 * (1 - h * 0.006), r * 0.3, 0, 0, 7);
       ctx.fill();
 
       // Golden ball sparkle trail
       if (b.golden && Math.random() < 0.6) {
-        G.particles.push({ x: pos.x, y: pos.y, vx: (Math.random() - .5), vy: (Math.random() - .5), life: 0.6, color: '#ffd93b' });
+        G.particles.push({ x: pos.x, y: by, vx: (Math.random() - .5), vy: (Math.random() - .5), life: 0.6, color: '#ffd93b' });
       }
 
-      // The ball
+      // The ball (lifted by its height)
       ctx.fillStyle = b.golden ? '#ffd93b' : '#e8382a';
-      ctx.beginPath(); ctx.arc(pos.x, pos.y, r, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(pos.x, by, r, 0, 7); ctx.fill();
       // Seam
       ctx.strokeStyle = b.golden ? '#c99400' : '#8f1a12';
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(pos.x, pos.y, r * 0.6, 0.4, 2.6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(pos.x, by, r * 0.6, 0.4, 2.6); ctx.stroke();
       return;
     }
 

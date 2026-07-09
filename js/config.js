@@ -35,7 +35,7 @@ const CONFIG = {
   GOLDEN_MIN_BALL: 4,       // golden balls only appear after this many balls
   STREAK_PER_LEVEL: 4,      // boundaries in a row per +1 multiplier
   MAX_MULTIPLIER: 3,        // score multiplier cap (x3)
-  SWING_CURVE_MAX: 60,      // how far a ball can curve sideways (pixels)
+  SWING_CURVE_MAX: 26,      // in-air sideways swing before the bounce (pixels)
 
   // ---------- Between balls ----------
   RUNUP_MS: 700,         // bowler run-up time
@@ -134,17 +134,27 @@ const MISSION_POOL = [
 ];
 
 /* ---------- Delivery types (the AI bowler's bag of tricks) ----------
+   Modelled on real cricket: every ball PITCHES (bounces) once, then the
+   seam or spin can make it TURN sideways off the pitch.
    weight   : how often the bowler picks it (relative)
    flight   : flight-time multiplier (lower = faster ball)
    window   : timing-window multiplier (lower = harder to time)
    bonus    : extra runs added to a boundary off this ball
-   catchRisk: chance a WEAK hit (1-run timing) is caught out       */
+   catchRisk: chance a WEAK hit (1-run timing) is caught out
+   length   : where it pitches, 0 (at bowler) → 1 (at batter). Short ball
+              pitches early & bounces high; yorker pitches late & stays low.
+   bounce   : how high it hops off the pitch (pixels)
+   turn     : sideways deviation AFTER the bounce (pixels). Seam bowlers get
+              a small random-direction nibble; spinners turn a lot. Spin
+              deliveries set `spin:true` and a signed turn (off vs leg).      */
 const DELIVERIES = [
-  { id: 'normal', name: '',              weight: 40, flight: 1.00, window: 1.00, bonus: 0, catchRisk: 0   },
-  { id: 'fast',   name: '⚡ FAST BALL',  weight: 15, flight: 0.75, window: 1.00, bonus: 2, catchRisk: 0   },
-  { id: 'slower', name: '🐢 SLOWER BALL',weight: 15, flight: 1.28, window: 1.00, bonus: 0, catchRisk: 0   },
-  { id: 'yorker', name: '🎯 YORKER',     weight: 15, flight: 0.90, window: 0.70, bonus: 1, catchRisk: 0   },
-  { id: 'short',  name: '⬆️ SHORT BALL', weight: 15, flight: 1.12, window: 1.35, bonus: 0, catchRisk: 0.5 },
+  { id: 'normal',  name: '',               weight: 34, flight: 1.00, window: 1.00, bonus: 0, catchRisk: 0,   length: 0.55, bounce: 16, turn: 12 },
+  { id: 'fast',    name: '⚡ FAST BALL',   weight: 13, flight: 0.75, window: 1.00, bonus: 2, catchRisk: 0,   length: 0.60, bounce: 18, turn: 8  },
+  { id: 'slower',  name: '🐢 SLOWER BALL', weight: 12, flight: 1.28, window: 1.00, bonus: 0, catchRisk: 0,   length: 0.50, bounce: 20, turn: 12 },
+  { id: 'yorker',  name: '🎯 YORKER',      weight: 12, flight: 0.90, window: 0.70, bonus: 1, catchRisk: 0,   length: 0.90, bounce: 6,  turn: 4  },
+  { id: 'short',   name: '⬆️ SHORT BALL',  weight: 12, flight: 1.12, window: 1.35, bonus: 0, catchRisk: 0.5, length: 0.34, bounce: 40, turn: 14 },
+  { id: 'offspin', name: '🌀 OFF SPIN',    weight: 9,  flight: 1.16, window: 1.05, bonus: 1, catchRisk: 0,   length: 0.58, bounce: 24, turn: 30, spin: true },
+  { id: 'legspin', name: '🌀 LEG SPIN',    weight: 8,  flight: 1.12, window: 1.05, bonus: 1, catchRisk: 0,   length: 0.58, bounce: 24, turn: -30, spin: true },
 ];
 
 /* ---------- Bat skins (the shop) ----------

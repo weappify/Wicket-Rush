@@ -41,6 +41,9 @@ fullscreen and offline.
   - 🐢 **Slower ball** — punishes swinging early
   - 🎯 **Yorker** — deceptive: the timing window shrinks
   - ⬆️ **Short ball** — easier to hit, but a weak poke can get you **CAUGHT**
+  - 🌀 **Off spin / Leg spin** — pitches and **turns** sideways off the surface
+- Just like real cricket, every ball **pitches (bounces) once** and can deviate off the
+  seam or spin after it lands. The 22-yard pitch sits inside the 30-yard circle, on a full oval ground.
 - Every over the bowling gets faster.
 - Boundary streaks light a 🔥 **multiplier** (up to x3). ✨ **Golden balls** are worth double.
 - Runs become 🪙 coins. Spend them in the **Bat Shop** on cosmetic bat skins.
